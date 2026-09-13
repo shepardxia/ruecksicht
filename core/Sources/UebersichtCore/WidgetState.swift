@@ -64,6 +64,10 @@ public actor WidgetState {
         return out
     }
 
+    public func latestAll() -> [String: TickResult] {
+        records.mapValues(\.result)
+    }
+
     public func markDelivered(page: String, widgets: [String]) {
         for widget in widgets {
             guard let record = records[widget] else { continue }

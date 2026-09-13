@@ -9,6 +9,7 @@
 #import "UBScreensController.h"
 #import "UBDispatcher.h"
 #import "UBScreenChangeListener.h"
+#import <IOKit/graphics/IOGraphicsLib.h>
 
 int const MAX_DISPLAYS = 42;
 

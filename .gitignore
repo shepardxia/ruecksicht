@@ -1,25 +1,25 @@
-# Xcode
-.DS_Store
-/build/
-*.pbxuser
-!default.pbxuser
-*.mode1v3
+
 !default.mode1v3
-*.mode2v3
 !default.mode2v3
-*.perspectivev3
+!default.pbxuser
 !default.perspectivev3
-*.xcworkspace
 !default.xcworkspace
-xcuserdata
-profile
-*.moved-aside
-DerivedData
+.DS_Store
 .idea/
-
-server/node_modules
-
+*.mode1v3
+*.mode2v3
+*.moved-aside
+*.pbxuser
+*.perspectivev3
+*.xcworkspace
+/build/
 # build files
-server/release/server.js
-server/release/public/client.js
+# Xcode
+build/
+DerivedData
+profile
+server/node_modules
 server/release/node_modules
+server/release/public/client.js
+server/release/server.js
+xcuserdata

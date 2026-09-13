@@ -72,8 +72,10 @@ let hub = WebSocketHub()
 
 func widgetPayload(_ widget: Widget) -> String {
     let escapedPath = widget.path.replacingOccurrences(of: "\"", with: "\\\"")
+    let driven = WidgetSource.schedule(forSourceAt: widget.path) != nil
     return """
         {"id":"\(widget.id)","filePath":"\(escapedPath)","error":null,\
+        "serverDriven":\(driven),\
         "mtime":\(Int(widget.modified.timeIntervalSince1970 * 1000))}
         """
 }
@@ -103,11 +105,7 @@ func serveFile(_ path: String) -> HTTPResponse? {
 
 func widgetsJSON() -> String {
     let entries = WidgetDirectory.scan(options.widgetDirectory).map { widget -> String in
-        let escapedPath = widget.path.replacingOccurrences(of: "\"", with: "\\\"")
-        return """
-            "\(widget.id)":{"id":"\(widget.id)","filePath":"\(escapedPath)",\
-            "mtime":\(Int(widget.modified.timeIntervalSince1970 * 1000))}
-            """
+        "\"\(widget.id)\":\(widgetPayload(widget))"
     }
     return "{\"widgets\":{\(entries.joined(separator: ","))},\"settings\":{},\"screens\":[]}"
 }
@@ -176,6 +174,7 @@ let server = try HTTPServer(port: options.port) { request in
 }
 
 server.onUpgrade = { connection, _ in hub.add(connection) }
+server.onUpgraded = { connection in hub.ready(connection) }
 server.start()
 
 // Widget edits reach the pages over the live channel; without it a save would
@@ -199,8 +198,61 @@ let watcher = DirectoryWatcher(path: options.widgetDirectory) { changes in
         hub.broadcast("{\"type\":\"WIDGET_ADDED\",\"payload\":\(widgetPayload(widget))}")
     }
     known = currentIds
+    Task { await loop.refresh(now: Date().timeIntervalSince1970) }
 }
 watcher.start()
+// The command loop lives here rather than in each page, so a widget's command
+// runs once however many screens show it, and an unchanged result never wakes
+// a page to re-render the same thing.
+let loop = CommandLoop(shells: shells, widgetDirectory: options.widgetDirectory)
+
+func jsonString(_ value: String) -> String {
+    let escaped = value
+        .replacingOccurrences(of: "\\", with: "\\\\")
+        .replacingOccurrences(of: "\"", with: "\\\"")
+        .replacingOccurrences(of: "\n", with: "\\n")
+        .replacingOccurrences(of: "\r", with: "\\r")
+        .replacingOccurrences(of: "\t", with: "\\t")
+    return "\"\(escaped)\""
+}
+
+func message(_ id: String, _ result: TickResult) -> String {
+    let payload = result.stderr.isEmpty
+        ? "{\"id\":\"\(id)\",\"output\":\(jsonString(result.stdout))}"
+        : "{\"id\":\"\(id)\",\"error\":\(jsonString(result.stderr))}"
+    return "{\"type\":\"WIDGET_COMMAND_RAN\",\"payload\":\(payload)}"
+}
+
+func broadcastResult(_ id: String, _ result: TickResult) {
+    hub.broadcast(message(id, result))
+}
+
+let ticker = DispatchSource.makeTimerSource(
+    queue: DispatchQueue(label: "ub.loop", qos: .utility)
+)
+ticker.schedule(deadline: .now() + 0.25, repeating: 0.25, leeway: .milliseconds(50))
+ticker.setEventHandler {
+    Task {
+        for (id, result) in await loop.tick(now: Date().timeIntervalSince1970) {
+            broadcastResult(id, result)
+        }
+    }
+}
+ticker.resume()
+
+hub.onConnect = { connection in
+    Task {
+        for (id, result) in await loop.currentResults() {
+            hub.send(message(id, result), to: connection)
+        }
+    }
+}
+
+Task {
+    await loop.refresh(now: Date().timeIntervalSince1970)
+    let driven = await loop.drivenWidgets
+    print("driving \(driven.count) widget(s): \(driven.joined(separator: ", "))")
+}
 
 let widgets = WidgetDirectory.scan(options.widgetDirectory)
 // The app watches this line to know the port is live.

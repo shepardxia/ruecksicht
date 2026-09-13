@@ -41,6 +41,8 @@ public final class HTTPServer {
     /// Called instead of `handler` when a request asks to switch protocols; the
     /// connection then belongs to the caller and is not closed here.
     public var onUpgrade: ((NWConnection, String) -> Void)?
+    /// Called after the handshake response has been written.
+    public var onUpgraded: ((NWConnection) -> Void)?
     private let queue = DispatchQueue(label: "ub.http", qos: .userInitiated)
 
     public init(port: UInt16, handler: @escaping Handler) throws {
@@ -92,7 +94,9 @@ public final class HTTPServer {
                         forKey: key,
                         protocols: request.headers["sec-websocket-protocol"]
                     ),
-                    completion: .contentProcessed { _ in }
+                    completion: .contentProcessed { [weak self] _ in
+                        self?.onUpgraded?(connection)
+                    }
                 )
                 return
             }

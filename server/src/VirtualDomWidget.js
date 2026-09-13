@@ -74,6 +74,9 @@ module.exports = function VirtualDomWidget(widgetObject) {
     implementation.init(dispatch);
     startAnimating();
     if (!implementation.command) return;
+    // The server runs literal commands once for every screen and pushes the
+    // result; running the same command here again would double the work.
+    if (widgetObject.serverDriven) return;
     commandLoop = Timer()
       .start()
       .map((done) => {
@@ -181,7 +184,11 @@ module.exports = function VirtualDomWidget(widgetObject) {
   };
 
   api.forceRefresh = function forceRefresh() {
-    commandLoop.forceTick();
+    commandLoop && commandLoop.forceTick();
+  };
+
+  api.receive = function receive(result) {
+    dispatch({type: 'UB/COMMAND_RAN', output: result.output, error: result.error});
   };
 
   return init(widgetObject);

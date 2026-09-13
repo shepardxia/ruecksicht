@@ -45,6 +45,8 @@ window.onload = ->
     listenToRemote (action) ->
       if action.type == 'WIDGET_WANTS_REFRESH'
         render.rendered[action.payload]?.instance?.forceRefresh()
+      else if action.type == 'WIDGET_COMMAND_RAN'
+        render.rendered[action.payload.id]?.instance?.receive(action.payload)
       else if action.type == 'WIDGET_ADDED'
         store.dispatch(action)
         return if action.payload.error
