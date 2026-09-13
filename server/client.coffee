@@ -9,6 +9,11 @@ actions = require './src/actions'
 userCssLink = null
 detectWidgetHover = require './src/detectWidgetHover'
 
+# Widget bundles resolve their `uebersicht` import against this, so every
+# widget shares the page's React and emotion instead of bundling its own.
+window.__ubersicht = require './src/uebersicht'
+window.__ubWidgets = {}
+
 
 window.onload = ->
   sharedSocket.open("ws://#{window.location.host}")
@@ -73,7 +78,7 @@ fetchWidget = (id) -> new Promise (resolve, reject) ->
   scriptTag.src = '/widgets/' + id
   scriptTag.onload = ->
     document.head.removeChild(scriptTag)
-    resolve(require(id))
+    resolve(window.__ubWidgets[id])
   scriptTag.onerror = (err) ->
     document.head.removeChild(scriptTag)
     reject(err)

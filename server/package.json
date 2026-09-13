@@ -17,6 +17,7 @@
   "private": true,
   "devDependencies": {
     "coffee-script": "^1.12.7",
+    "esbuild": "^0.28.2",
     "sinon": "^4.0.1",
     "tap-spec": "^5.0.0",
     "tape": "^4.13.3",
