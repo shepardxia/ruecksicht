@@ -88,7 +88,10 @@ public final class HTTPServer {
                 // inside the send completion raced the client's first frame.
                 upgrade(connection, key)
                 connection.send(
-                    content: WebSocketHub.acceptResponse(forKey: key),
+                    content: WebSocketHub.acceptResponse(
+                        forKey: key,
+                        protocols: request.headers["sec-websocket-protocol"]
+                    ),
                     completion: .contentProcessed { _ in }
                 )
                 return
@@ -104,7 +107,11 @@ public final class HTTPServer {
     private static func parse(_ data: Data) -> HTTPRequest? {
         guard let headerEnd = data.range(of: Data("\r\n\r\n".utf8)) else { return nil }
         let headerData = data[data.startIndex..<headerEnd.lowerBound]
-        guard let headerText = String(data: headerData, encoding: .utf8) else { return nil }
+        // Header bytes are Latin-1 by spec, and the app sends Origin: Übersicht.
+        // Demanding UTF-8 here rejected that request and stalled the connection.
+        guard let headerText = String(data: headerData, encoding: .utf8)
+            ?? String(data: headerData, encoding: .isoLatin1)
+        else { return nil }
 
         let lines = headerText.components(separatedBy: "\r\n")
         let requestLine = lines[0].split(separator: " ")

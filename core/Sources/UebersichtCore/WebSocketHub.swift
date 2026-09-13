@@ -21,17 +21,25 @@ public final class WebSocketHub {
         return clients.count
     }
 
-    public static func acceptResponse(forKey key: String) -> Data {
+    /// A client that asked for a subprotocol closes the connection unless the
+    /// server names one back, so the first requested protocol is echoed.
+    public static func acceptResponse(forKey key: String, protocols: String? = nil) -> Data {
         let digest = Insecure.SHA1.hash(data: Data((key + handshakeGUID).utf8))
         let accept = Data(digest).base64EncodedString()
-        let head = """
-            HTTP/1.1 101 Switching Protocols\r
-            Upgrade: websocket\r
-            Connection: Upgrade\r
-            Sec-WebSocket-Accept: \(accept)\r
-            \r
 
-            """
+        var head = "HTTP/1.1 101 Switching Protocols\r\n"
+        head += "Upgrade: websocket\r\n"
+        head += "Connection: Upgrade\r\n"
+        head += "Sec-WebSocket-Accept: \(accept)\r\n"
+        if let chosen = protocols?
+            .split(separator: ",")
+            .first?
+            .trimmingCharacters(in: .whitespaces),
+            !chosen.isEmpty
+        {
+            head += "Sec-WebSocket-Protocol: \(chosen)\r\n"
+        }
+        head += "\r\n"
         return Data(head.utf8)
     }
 
