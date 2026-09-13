@@ -14,8 +14,7 @@
 
 const esbuild = require('esbuild');
 const path = require('path');
-const coffee = require('coffee-script');
-const widgetify = require('./widgetify');
+const transformWidget = require('./transformWidget');
 const {EventEmitter} = require('events');
 
 const SHIMS = {
@@ -41,12 +40,6 @@ const SHIMS = {
 };
 
 const UEBERSICHT_SHIM = 'module.exports = globalThis.__ubersicht;';
-
-// Classic widgets are a bare object literal; widgetify needs it as an
-// expression, and rewrites it into a module export.
-function wrapClassicWidget(source) {
-  return '({' + source + '})';
-}
 
 function esbuildError(filePath, error) {
   const first = (error.errors && error.errors[0]) || {};
@@ -103,11 +96,12 @@ module.exports = function bundleWidget(id, filePath) {
       if (isCoffee) {
         build.onLoad({filter: /\.coffee$/}, (args) => {
           const source = fs.readFileSync(args.path, 'utf8');
-          const compiled = coffee.compile(source, {bare: true, header: false});
+          // Only the entry is a widget; an imported .coffee is just a module.
           const contents =
             args.path === filePath
-              ? widgetify.transform(compiled, id)
-              : compiled;
+              ? transformWidget(source, id, true)
+              : require('coffee-script/lib/coffee-script/coffee-script.js')
+                  .compile(source, {bare: true, header: false});
           return {contents: contents, loader: 'js'};
         });
       }
@@ -118,10 +112,7 @@ module.exports = function bundleWidget(id, filePath) {
         );
         build.onLoad({filter: entryFilter}, (args) => {
           const source = fs.readFileSync(args.path, 'utf8');
-          return {
-            contents: widgetify.transform(wrapClassicWidget(source), id),
-            loader: 'js',
-          };
+          return {contents: transformWidget(source, id, false), loader: 'js'};
         });
       }
     },

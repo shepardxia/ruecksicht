@@ -1,7 +1,7 @@
 {
   "name": "uebersicht-server",
   "version": "0.0.0",
-  "description": "Node.js backend for Übersicht",
+  "description": "Node.js backend for \u00dcbersicht",
   "main": "server.coffee",
   "scripts": {
     "test": "npm run-script test-local && npm run-script test-browser",
@@ -10,7 +10,8 @@
     "start": "coffee server.coffee",
     "release": "npm run-script build-client && npm run-script build-server",
     "build-client": "browserify -i ws -t coffeeify -t babelify -r ./src/uebersicht.js:uebersicht client.coffee | uglifyjs -c > release/public/client.js",
-    "build-server": "browserify -t coffeeify --node --detect-globals false --no-bundle-external server.coffee > release/server.js && cd release && npm prune --production && npm install --production --no-progress"
+    "build-server": "browserify -t coffeeify --node --detect-globals false --no-bundle-external server.coffee > release/server.js && cd release && npm prune --production && npm install --production --no-progress",
+    "build-kernel": "node kernel/build.js"
   },
   "author": "Felix Hageloh",
   "license": "GPL v3 <http://www.gnu.org/licenses/>",

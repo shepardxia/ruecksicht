@@ -75,7 +75,7 @@ public final class DirectoryWatcher {
         for file in changed {
             if file.hasSuffix("/main.css") {
                 pending.insert(.masterStyle)
-            } else if ["jsx", "js", "coffee"].contains((file as NSString).pathExtension) {
+            } else if WidgetDirectory.sourceExtensions.contains((file as NSString).pathExtension) {
                 pending.insert(.widgets)
             }
         }

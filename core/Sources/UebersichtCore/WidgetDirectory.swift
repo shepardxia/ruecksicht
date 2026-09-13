@@ -13,7 +13,7 @@ public struct Widget: Sendable {
 /// Ids are the widget-relative path with every non-alphanumeric run collapsed to
 /// a dash, matching the ids already baked into saved widget settings.
 public enum WidgetDirectory {
-    static let sourceExtensions = ["jsx", "js", "coffee"]
+    public static let sourceExtensions = ["jsx", "js", "coffee"]
 
     public static func slug(_ relativePath: String) -> String {
         let collapsed = relativePath.map { character -> Character in

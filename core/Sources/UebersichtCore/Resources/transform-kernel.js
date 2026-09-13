@@ -1638,10 +1638,10 @@
     }
   });
 
-  // ../../../../../../../private/tmp/ubshims/node-globals.js
+  // kernel/shims/node-globals.js
   var import_buffer, Buffer, process;
   var init_node_globals = __esm({
-    "../../../../../../../private/tmp/ubshims/node-globals.js"() {
+    "kernel/shims/node-globals.js"() {
       import_buffer = __toESM(require_buffer());
       Buffer = import_buffer.Buffer;
       process = {
@@ -1671,9 +1671,9 @@
     }
   });
 
-  // ../../../../../../../private/tmp/ubshims/fs.js
-  var require_fs = __commonJS({
-    "../../../../../../../private/tmp/ubshims/fs.js"(exports2, module2) {
+  // kernel/shims/fs.generated.js
+  var require_fs_generated = __commonJS({
+    "kernel/shims/fs.generated.js"(exports2, module2) {
       init_node_globals();
       var FILES = { "/functions/index.styl": `called-from = ()
 
@@ -8041,7 +8041,7 @@ list-style-image()
             process.exit(1);
           }
           var source = "";
-          var fs = require_fs();
+          var fs = require_fs_generated();
           if (typeof fs !== "undefined" && fs !== null)
             source = fs.readFileSync(require_path_browserify().normalize(args[1]), "utf8");
           return exports2.parser.parse(source);
@@ -8256,9 +8256,9 @@ list-style-image()
     }
   });
 
-  // ../../../../../../../private/tmp/ubshims/empty.js
+  // kernel/shims/empty.js
   var require_empty = __commonJS({
-    "../../../../../../../private/tmp/ubshims/empty.js"(exports2, module2) {
+    "kernel/shims/empty.js"(exports2, module2) {
       init_node_globals();
       module2.exports = {};
     }
@@ -11949,7 +11949,7 @@ list-style-image()
       init_node_globals();
       (function() {
         var Lexer, SourceMap, base64encode, compile, ext, fn1, formatSourcePosition, fs, getSourceMap, helpers, i, len, lexer, packageJson, parser, path, ref, sourceMaps, sources, vm, withPrettyErrors, hasProp = {}.hasOwnProperty;
-        fs = require_fs();
+        fs = require_fs_generated();
         vm = require_vm_browserify();
         path = require_path_browserify();
         Lexer = require_lexer().Lexer;
@@ -25354,7 +25354,7 @@ list-style-image()
       init_node_globals();
       var pathModule = require_path_browserify();
       var isWindows = process.platform === "win32";
-      var fs = require_fs();
+      var fs = require_fs_generated();
       var DEBUG = process.env.NODE_DEBUG && /fs/.test(process.env.NODE_DEBUG);
       function rethrow() {
         var callback;
@@ -25560,7 +25560,7 @@ list-style-image()
   });
 
   // node_modules/fs.realpath/index.js
-  var require_fs2 = __commonJS({
+  var require_fs = __commonJS({
     "node_modules/fs.realpath/index.js"(exports2, module2) {
       init_node_globals();
       module2.exports = realpath;
@@ -25569,7 +25569,7 @@ list-style-image()
       realpath.realpathSync = realpathSync;
       realpath.monkeypatch = monkeypatch;
       realpath.unmonkeypatch = unmonkeypatch;
-      var fs = require_fs();
+      var fs = require_fs_generated();
       var origRealpath = fs.realpath;
       var origRealpathSync = fs.realpathSync;
       var version = process.version;
@@ -27075,8 +27075,8 @@ list-style-image()
       init_node_globals();
       module2.exports = globSync;
       globSync.GlobSync = GlobSync;
-      var fs = require_fs();
-      var rp = require_fs2();
+      var fs = require_fs_generated();
+      var rp = require_fs();
       var minimatch = require_minimatch();
       var Minimatch = minimatch.Minimatch;
       var Glob = require_glob().Glob;
@@ -27563,8 +27563,8 @@ list-style-image()
     "node_modules/glob/glob.js"(exports2, module2) {
       init_node_globals();
       module2.exports = glob;
-      var fs = require_fs();
-      var rp = require_fs2();
+      var fs = require_fs_generated();
+      var rp = require_fs();
       var minimatch = require_minimatch();
       var Minimatch = minimatch.Minimatch;
       var inherits = require_inherits_browser();
@@ -28287,7 +28287,7 @@ list-style-image()
       var join = require_path_browserify().join;
       var isAbsolute = require_path_browserify().isAbsolute;
       var glob = require_glob();
-      var fs = require_fs();
+      var fs = require_fs_generated();
       exports2.absolute = isAbsolute || function(path) {
         return path.substr(0, 2) == "\\\\" || "/" === path.charAt(0) || /^[a-z]:[\\\/]/i.test(path);
       };
@@ -31054,7 +31054,7 @@ list-style-image()
       var utils = require_utils2();
       var nodes = require_nodes2();
       var Buffer2 = require_safer().Buffer;
-      var fs = require_fs();
+      var fs = require_fs_generated();
       var path = require_path_browserify();
       var sax = require_sax();
       var Image = module2.exports = /* @__PURE__ */ __name(function Image2(ctx, path2) {
@@ -31179,7 +31179,7 @@ list-style-image()
       init_node_globals();
       var utils = require_utils2();
       var nodes = require_nodes2();
-      var readFile = require_fs().readFileSync;
+      var readFile = require_fs_generated().readFileSync;
       function json(path, local, namePrefix) {
         utils.assertString(path, "path");
         path = path.string;
@@ -31630,7 +31630,7 @@ list-style-image()
       init_node_globals();
       var Visitor = require_visitor();
       var utils = require_utils2();
-      var fs = require_fs();
+      var fs = require_fs_generated();
       var Compiler = module2.exports = /* @__PURE__ */ __name(function Compiler2(root, options) {
         options = options || {};
         this.compress = options.compress;
@@ -34218,7 +34218,7 @@ list-style-image()
       var parse = require_url().parse;
       var extname = require_path_browserify().extname;
       var utils = require_utils2();
-      var fs = require_fs();
+      var fs = require_fs_generated();
       var defaultMimes = {
         ".gif": "image/gif",
         ".png": "image/png",
@@ -34293,7 +34293,7 @@ list-style-image()
       var dirname = require_path_browserify().dirname;
       var colors = require_colors();
       var debug = require_browser2()("stylus:evaluator");
-      var fs = require_fs();
+      var fs = require_fs_generated();
       function importFile(node, file, literal) {
         var importStack = this.importStack, Parser = require_parser2(), stat;
         if (node.once) {
@@ -81622,7 +81622,7 @@ list-style-image()
         }, "readWasm");
         module2.exports.initialize = (url) => mappingsWasmUrl = url;
       } else {
-        const fs = require_fs();
+        const fs = require_fs_generated();
         const path = require_path_browserify();
         module2.exports = /* @__PURE__ */ __name(function readWasm() {
           return new Promise((resolve, reject) => {
@@ -83051,7 +83051,7 @@ list-style-image()
       var join = require_path_browserify().join;
       var relative = require_path_browserify().relative;
       var sep = require_path_browserify().sep;
-      var fs = require_fs();
+      var fs = require_fs_generated();
       var SourceMapper = module2.exports = /* @__PURE__ */ __name(function SourceMapper2(root, options) {
         options = options || {};
         this.column = 1;
@@ -83161,7 +83161,7 @@ list-style-image()
       var nodes = require_nodes2();
       var utils = require_utils2();
       var dirname = require_path_browserify().dirname;
-      var fs = require_fs();
+      var fs = require_fs_generated();
       var DepsResolver = module2.exports = /* @__PURE__ */ __name(function DepsResolver2(root, options) {
         this.root = root;
         this.filename = options.filename;
@@ -84616,7 +84616,7 @@ list-style-image()
     "node_modules/mkdirp/lib/opts-arg.js"(exports2, module2) {
       init_node_globals();
       var { promisify } = require_util2();
-      var fs = require_fs();
+      var fs = require_fs_generated();
       var optsArg = /* @__PURE__ */ __name((opts) => {
         if (!opts)
           opts = { mode: 511, fs };
@@ -84805,7 +84805,7 @@ list-style-image()
   var require_use_native = __commonJS({
     "node_modules/mkdirp/lib/use-native.js"(exports2, module2) {
       init_node_globals();
-      var fs = require_fs();
+      var fs = require_fs_generated();
       var version = process.env.__TESTING_MKDIRP_NODE_VERSION__ || process.version;
       var versArr = version.replace(/^v/, "").split(".");
       var hasNative = +versArr[0] > 10 || +versArr[0] === 10 && +versArr[1] >= 12;
@@ -84849,7 +84849,7 @@ list-style-image()
       init_node_globals();
       var stylus2 = require_stylus();
       var semver = require_semver();
-      var fs = require_fs();
+      var fs = require_fs_generated();
       var url = require_url();
       var dirname = require_path_browserify().dirname;
       var join = require_path_browserify().join;
@@ -87767,7 +87767,7 @@ list-style-image()
       var SourceMapConsumer = require_source_map3().SourceMapConsumer;
       var sourceMapResolve = require_source_map_resolve();
       var urix = require_urix();
-      var fs = require_fs();
+      var fs = require_fs_generated();
       var path = require_path_browserify();
       module2.exports = mixin;
       function mixin(compiler) {
@@ -88107,9 +88107,9 @@ list-style-image()
     }
   });
 
-  // ../../../../../../../private/tmp/ubshims/nib.js
+  // kernel/shims/nib.js
   var require_nib = __commonJS({
-    "../../../../../../../private/tmp/ubshims/nib.js"(exports2, module2) {
+    "kernel/shims/nib.js"(exports2, module2) {
       init_node_globals();
       var stylus2 = require_stylus();
       function plugin() {
@@ -88377,14 +88377,24 @@ list-style-image()
     }
   });
 
-  // ../../../../../../../private/tmp/k3.js
+  // src/transformWidget.js
+  var require_transformWidget = __commonJS({
+    "src/transformWidget.js"(exports2, module2) {
+      "use strict";
+      init_node_globals();
+      var coffee = require_coffee_script();
+      var widgetify = require_widgetify();
+      module2.exports = /* @__PURE__ */ __name(function transformWidget2(source, id, isCoffee) {
+        const js = isCoffee ? coffee.compile(source, { bare: true, header: false }) : "({" + source + "})";
+        return widgetify.transform(js, id);
+      }, "transformWidget");
+    }
+  });
+
+  // kernel/entry.js
   init_node_globals();
-  var coffee = require_coffee_script();
-  var widgetify = require_widgetify();
-  globalThis.__ubTransform = function(source, id, isCoffee) {
-    const js = isCoffee ? coffee.compile(source, { bare: true, header: false }) : "({" + source + "})";
-    return widgetify.transform(js, id);
-  };
+  var transformWidget = require_transformWidget();
+  globalThis.__ubTransform = transformWidget;
 })();
 /*! Bundled license information:
 

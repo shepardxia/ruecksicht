@@ -39,9 +39,17 @@ if ibtool --compile "$APP/Contents/Resources/MainMenu.nib" \
 elif [ -d "$INSTALLED" ]; then
   echo "ibtool unavailable; taking compiled nibs from $INSTALLED"
   mkdir -p "$APP/Contents/Resources/Base.lproj"
-  cp -R "$INSTALLED"/Base.lproj/*.nib "$APP/Contents/Resources/Base.lproj/" 2>/dev/null || true
-  cp -R "$INSTALLED"/*.nib "$APP/Contents/Resources/" 2>/dev/null || true
+  cp -R "$INSTALLED"/Base.lproj/*.nib "$APP/Contents/Resources/Base.lproj/"
+  cp -R "$INSTALLED"/*.nib "$APP/Contents/Resources/"
+else
+  echo "no way to produce nibs: ibtool is unavailable and no installed build to copy from" >&2
+  exit 1
 fi
+
+# An app whose menu never appears is not a build worth shipping.
+[ -f "$APP/Contents/Resources/Base.lproj/MainMenu.nib" ] || {
+  echo "MainMenu.nib missing from the bundle" >&2; exit 1
+}
 
 cp "$ROOT/Uebersicht/Uebersicht-Info.plist" "$APP/Contents/Info.plist"
 plutil -replace CFBundleExecutable -string "Übersicht" "$APP/Contents/Info.plist"
@@ -50,5 +58,7 @@ plutil -replace CFBundleName -string "Übersicht" "$APP/Contents/Info.plist"
 plutil -remove SUFeedURL "$APP/Contents/Info.plist" 2>/dev/null || true
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 
-codesign --force --deep --sign - "$APP" 2>/dev/null || true
+# Ad-hoc signing is best effort: it is not required to run a local build, and
+# codesign itself is broken on machines with a partial Xcode install.
+codesign --force --deep --sign - "$APP" 2>/dev/null || echo "note: ad-hoc signing unavailable"
 echo "built $APP"

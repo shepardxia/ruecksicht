@@ -12,7 +12,7 @@ public final class Bundler {
     private let cacheDirectory: String
     private var cache: [String: (source: String, modified: Date)] = [:]
     private let lock = NSLock()
-    private let kernel: TransformKernel
+    private var loadedKernel: TransformKernel?
 
     public enum SetupError: Error, CustomStringConvertible {
         case esbuildMissing
@@ -28,7 +28,6 @@ public final class Bundler {
 
     public init(esbuildPath: String? = nil, cacheDirectory: String) throws {
         guard let binary = esbuildPath ?? Self.locate() else { throw SetupError.esbuildMissing }
-        do { self.kernel = try TransformKernel() } catch { throw SetupError.kernel(error) }
         self.esbuild = binary
         self.cacheDirectory = cacheDirectory
         self.shimPath = (cacheDirectory as NSString).appendingPathComponent("uebersicht-shim.js")
@@ -42,6 +41,13 @@ public final class Bundler {
     }
 
     private static func locate() -> String? {
+        // An explicit path beats guessing, and is how a packaged build says
+        // where its own copy lives.
+        if let declared = ProcessInfo.processInfo.environment["UB_ESBUILD"],
+           FileManager.default.isExecutableFile(atPath: declared) {
+            return declared
+        }
+
         let candidates = [
             "node_modules/@esbuild/darwin-arm64/bin/esbuild",
             "node_modules/@esbuild/darwin-x64/bin/esbuild",
@@ -59,6 +65,19 @@ public final class Bundler {
         }
         return ["/opt/homebrew/bin/esbuild", "/usr/local/bin/esbuild"].first {
             FileManager.default.isExecutableFile(atPath: $0)
+        }
+    }
+
+    /// Loaded on first use: evaluating the kernel costs a few hundred
+    /// milliseconds, and a desktop of .jsx widgets never needs it.
+    private func kernel() throws -> TransformKernel {
+        if let loadedKernel { return loadedKernel }
+        do {
+            let kernel = try TransformKernel()
+            loadedKernel = kernel
+            return kernel
+        } catch {
+            throw SetupError.kernel(error)
         }
     }
 
@@ -81,7 +100,7 @@ public final class Bundler {
         var entry = widget.path
         if widget.isCoffee || widget.path.hasSuffix(".js") {
             let source = try String(contentsOfFile: widget.path, encoding: .utf8)
-            let compiled = try kernel.transform(
+            let compiled = try kernel().transform(
                 source: source, id: widget.id, isCoffee: widget.isCoffee
             )
             entry = (cacheDirectory as NSString)

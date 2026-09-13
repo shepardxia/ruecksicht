@@ -145,7 +145,10 @@ int const PORT = 41416;
 
     void (^handleExit)(NSTask*) = ^(NSTask* theTask) {
         if (!self->shuttingDown) {
-            [self shutdown];
+            // The server exited on its own -- a taken port, or a crash. Tear
+            // down but stay alive, or the retry below can never run and the
+            // port search never advances past the first busy port.
+            [self shutdown:YES];
         }
         if (self->portOffset >= 20) {
             self->keepServerAlive = NO;

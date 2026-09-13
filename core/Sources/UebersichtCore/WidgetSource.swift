@@ -30,10 +30,9 @@ public enum WidgetSource {
     static func refreshFrequency(in source: String) -> TimeInterval? {
         for marker in ["export const refreshFrequency", "refreshFrequency"] {
             guard let range = source.range(of: marker) else { continue }
-            var rest = source[range.upperBound...].drop { $0 == " " || $0 == "=" || $0 == ":" }
+            let rest = source[range.upperBound...].drop { $0 == " " || $0 == "=" || $0 == ":" }
             let digits = rest.prefix { $0.isNumber }
             if let ms = Double(digits), ms > 0 { return ms / 1000 }
-            rest = rest.drop { !$0.isNumber }
         }
         return nil
     }

@@ -76,33 +76,13 @@ module.exports = function WidgetBundler() {
   }
 
   function errorJSON(filePath, error) {
-    if (!error._babel) {
-      return JSON.stringify({
-        line: error.line,
-        column: error.column,
-        path: filePath,
-        lines: error.annotated,
-        message: error.message,
-      });
-    }
     return JSON.stringify({
-      line: error.loc.line,
-      column: error.loc.column,
-      lines: parseCodeFrame(error.codeFrame),
+      line: error.line,
+      column: error.column,
       path: filePath,
+      lines: error.annotated,
       message: error.message,
     });
-  }
-
-  function parseCodeFrame(codeFrame) {
-    return codeFrame
-      .split('\n')
-      .map(l => {
-        const [num, line] = l.split('|', 2);
-        const lineNum = parseInt(num.replace(/^>/, ''), 10);
-        return isNaN(lineNum) ? undefined : {lineNum: lineNum, line: line};
-      })
-      .filter(i => i);
   }
 
   return api;

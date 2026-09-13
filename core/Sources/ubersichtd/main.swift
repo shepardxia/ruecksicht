@@ -69,13 +69,22 @@ do {
 
 let allowedOrigin = "http://127.0.0.1:\(options.port)"
 let hub = WebSocketHub()
+let index = WidgetIndex(directory: options.widgetDirectory)
+
+func jsonString(_ value: String) -> String {
+    let escaped = value
+        .replacingOccurrences(of: "\\", with: "\\\\")
+        .replacingOccurrences(of: "\"", with: "\\\"")
+        .replacingOccurrences(of: "\n", with: "\\n")
+        .replacingOccurrences(of: "\r", with: "\\r")
+        .replacingOccurrences(of: "\t", with: "\\t")
+    return "\"\(escaped)\""
+}
 
 func widgetPayload(_ widget: Widget) -> String {
-    let escapedPath = widget.path.replacingOccurrences(of: "\"", with: "\\\"")
-    let driven = WidgetSource.schedule(forSourceAt: widget.path) != nil
     return """
-        {"id":"\(widget.id)","filePath":"\(escapedPath)","error":null,\
-        "serverDriven":\(driven),\
+        {"id":\(jsonString(widget.id)),"filePath":\(jsonString(widget.path)),"error":null,\
+        "serverDriven":\(index.isServerDriven(widget.id)),\
         "mtime":\(Int(widget.modified.timeIntervalSince1970 * 1000))}
         """
 }
@@ -104,8 +113,8 @@ func serveFile(_ path: String) -> HTTPResponse? {
 }
 
 func widgetsJSON() -> String {
-    let entries = WidgetDirectory.scan(options.widgetDirectory).map { widget -> String in
-        "\"\(widget.id)\":\(widgetPayload(widget))"
+    let entries = index.all.map { widget -> String in
+        "\(jsonString(widget.id)):\(widgetPayload(widget))"
     }
     return "{\"widgets\":{\(entries.joined(separator: ","))},\"settings\":{},\"screens\":[]}"
 }
@@ -144,8 +153,9 @@ let server = try HTTPServer(port: options.port) { request in
 
     if path.hasPrefix("/widgets/") {
         let id = String(path.dropFirst("/widgets/".count))
-        guard let widget = WidgetDirectory.scan(options.widgetDirectory).first(where: { $0.id == id })
-        else { return HTTPResponse.text("", status: 404) }
+        guard let widget = index.widget(id: id) else {
+            return HTTPResponse.text("", status: 404)
+        }
         do {
             return HTTPResponse(
                 status: 200,
@@ -173,20 +183,36 @@ let server = try HTTPServer(port: options.port) { request in
     return HTTPResponse.text("not found", status: 404)
 }
 
+// The app watches stdout for EADDRINUSE and retries on the next port.
+server.onFailure = { error in
+    let message = "\(error)".contains("Address already in use")
+        ? "EADDRINUSE: port \(options.port) is already serving"
+        : "listener failed: \(error)"
+    print(message)
+    exit(1)
+}
+// The app watches this line to know the port is live, so it is printed once
+// the listener is actually bound rather than once start() has been called.
+server.onReady = {
+    let widgets = index.all
+    print("server started on port \(options.port)")
+    print("watching \(options.widgetDirectory)")
+    print("\(widgets.count) widget(s): \(widgets.map(\.id).joined(separator: ", "))")
+}
 server.onUpgrade = { connection, _ in hub.add(connection) }
 server.onUpgraded = { connection in hub.ready(connection) }
 server.start()
 
 // Widget edits reach the pages over the live channel; without it a save would
 // only show up on a reload.
-var known = Set(WidgetDirectory.scan(options.widgetDirectory).map(\.id))
+var known = Set(index.all.map(\.id))
 let watcher = DirectoryWatcher(path: options.widgetDirectory) { changes in
     if changes.contains(.masterStyle) {
         hub.broadcast("{\"type\":\"MASTER_STYLE_CHANGED\"}")
     }
     guard changes.contains(.widgets) else { return }
 
-    let current = WidgetDirectory.scan(options.widgetDirectory)
+    let current = index.refresh()
     let currentIds = Set(current.map(\.id))
 
     for gone in known.subtracting(currentIds) {
@@ -205,16 +231,6 @@ watcher.start()
 // runs once however many screens show it, and an unchanged result never wakes
 // a page to re-render the same thing.
 let loop = CommandLoop(shells: shells, widgetDirectory: options.widgetDirectory)
-
-func jsonString(_ value: String) -> String {
-    let escaped = value
-        .replacingOccurrences(of: "\\", with: "\\\\")
-        .replacingOccurrences(of: "\"", with: "\\\"")
-        .replacingOccurrences(of: "\n", with: "\\n")
-        .replacingOccurrences(of: "\r", with: "\\r")
-        .replacingOccurrences(of: "\t", with: "\\t")
-    return "\"\(escaped)\""
-}
 
 func message(_ id: String, _ result: TickResult) -> String {
     let payload = result.stderr.isEmpty
@@ -254,11 +270,6 @@ Task {
     print("driving \(driven.count) widget(s): \(driven.joined(separator: ", "))")
 }
 
-let widgets = WidgetDirectory.scan(options.widgetDirectory)
-// The app watches this line to know the port is live.
-print("server started on port \(options.port)")
-print("watching \(options.widgetDirectory)")
-print("\(widgets.count) widget(s): \(widgets.map(\.id).joined(separator: ", "))")
 
 signal(SIGINT) { _ in exit(0) }
 signal(SIGTERM) { _ in exit(0) }

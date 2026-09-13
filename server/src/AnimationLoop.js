@@ -102,20 +102,7 @@ module.exports = function AnimationLoop(scheduler) {
         start();
       }
     },
-
-    has(id) {
-      return participants.has(id);
-    },
-
-    size() {
-      return participants.size;
-    },
-
-    running() {
-      return running;
-    },
   };
 };
 
 module.exports.DEFAULT_FREQUENCY = DEFAULT_FREQUENCY;
-module.exports.IDLE_STEPS_BEFORE_PARK = IDLE_STEPS_BEFORE_PARK;

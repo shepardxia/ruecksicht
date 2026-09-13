@@ -43,20 +43,37 @@ public final class HTTPServer {
     public var onUpgrade: ((NWConnection, String) -> Void)?
     /// Called after the handshake response has been written.
     public var onUpgraded: ((NWConnection) -> Void)?
-    private let queue = DispatchQueue(label: "ub.http", qos: .userInitiated)
+    // Each connection gets its own queue: a widget command can block its
+    // handler for seconds, and on one shared queue that stalls every other
+    // request and the listener with it.
+    private let queue = DispatchQueue(label: "ub.http", qos: .userInitiated, attributes: .concurrent)
 
     public init(port: UInt16, handler: @escaping Handler) throws {
         let parameters = NWParameters.tcp
         parameters.requiredLocalEndpoint = .hostPort(host: .ipv4(.loopback), port: .init(rawValue: port)!)
-        parameters.allowLocalEndpointReuse = true
+        // Deliberately not reusing the endpoint: a port already served by
+        // another Übersicht must fail to bind so the caller can move to the
+        // next one, rather than two servers answering the same requests.
         self.listener = try NWListener(using: parameters)
         self.handler = handler
     }
 
+    /// Binding is asynchronous, so callers learn the outcome here rather than
+    /// from `start()` returning.
+    public var onReady: (() -> Void)?
+    public var onFailure: ((Error) -> Void)?
+
     public func start() {
+        listener.stateUpdateHandler = { [weak self] state in
+            switch state {
+            case .ready: self?.onReady?()
+            case .failed(let error): self?.onFailure?(error)
+            default: break
+            }
+        }
         listener.newConnectionHandler = { [weak self] connection in
             guard let self else { return }
-            connection.start(queue: self.queue)
+            connection.start(queue: DispatchQueue(label: "ub.http.conn", qos: .userInitiated))
             self.receive(on: connection, buffer: Data())
         }
         listener.start(queue: queue)

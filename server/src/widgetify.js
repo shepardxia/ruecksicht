@@ -1,4 +1,3 @@
-var through = require('through2');
 var esprima = require('esprima');
 var escodegen = require('escodegen');
 var stylus = require('stylus');
@@ -113,29 +112,12 @@ function getWidgetObjectExpression(tree) {
   return undefined;
 }
 
-// The transform itself, for callers that hold the whole source already rather
-// than a stream. The stream wrapper below is the same transform.
+// Rewrites a widget's object literal into a module export: stamps the id,
+// compiles the stylus `style` block into scoped `css`, and turns an `ms`-style
+// refreshFrequency string into milliseconds.
 function transform(src, widgetId) {
   var tree = esprima.parse(src);
   return tree ? escodegen.generate(modifyAST(tree, widgetId)) : '';
 }
 
-module.exports = function(file, options) {
-  var widgetId = options.id;
-  var src = '';
-
-  function write(buf, enc, next) { src += buf; next(); }
-  function end(next) {
-    try {
-      this.push(transform(src, widgetId));
-    } catch (e) {
-      this.emit('error', e);
-    }
-
-    next();
-  }
-
-  return through(write, end);
-};
-
-module.exports.transform = transform;
+module.exports = {transform: transform};
