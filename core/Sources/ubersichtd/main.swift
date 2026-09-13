@@ -7,7 +7,7 @@ import UebersichtCore
 
 struct Options {
     var port: UInt16 = 41416
-    var widgetDirectory = "\(NSHomeDirectory())/Library/Application Support/Übersicht/widgets"
+    var widgetDirectory = "\(NSHomeDirectory())/Library/Application Support/Rücksicht/widgets"
     var publicDirectory = "server/public"
     var loginShell = false
     var token: String?

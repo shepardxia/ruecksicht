@@ -9,7 +9,7 @@ const scan = require('../src/ubdoctor');
 
 const DEFAULT_DIR = path.join(
   process.env.HOME || '',
-  'Library/Application Support/Übersicht/widgets',
+  'Library/Application Support/Rücksicht/widgets',
 );
 
 const args = process.argv.slice(2);

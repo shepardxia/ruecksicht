@@ -1,80 +1,85 @@
 #!/bin/bash
-# Builds Übersicht.app without Xcode: clang for the sources, ibtool for the
-# nibs, and the SwiftPM daemon copied in as a resource.
+# Builds Rücksicht.app without Xcode: clang for the sources and the SwiftPM
+# daemon copied in as a resource. Every window and menu is built in code, so the
+# app has no nibs.
 set -e
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-APP="$ROOT/build/Übersicht.app"
+APP="$ROOT/build/Rücksicht.app"
 SDK="$(xcrun --sdk macosx --show-sdk-path)"
 
+# The executable's filename stays ASCII deliberately. macOS stores filenames
+# decomposed, and codesign matches CFBundleExecutable against that form, so a
+# precomposed "ü" written here leaves the main binary unrecognized and the
+# bundle unsignable. Users read CFBundleName, never this.
+VERSION="1.0.0"
+BUILD="1"
+BUNDLE_ID="local.ruecksicht.Ruecksicht"
+
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
 swift build -c release --package-path "$ROOT/core" --product ubersichtd
 
 clang -fobjc-arc -fmodules -mmacosx-version-min=13.0 -isysroot "$SDK" \
   -I "$ROOT/Uebersicht" -I "$ROOT/Pods/SocketRocket" -I "$ROOT/Pods/SocketRocket/SocketRocket" \
-  -F "$ROOT/Pods/Sparkle" \
   -framework Cocoa -framework WebKit -framework CoreLocation \
   -framework IOKit -framework Security -framework SystemConfiguration \
-  -framework Sparkle -rpath @executable_path/../Frameworks \
   -Wno-deprecated-declarations -Wno-nullability-completeness \
   -include "$ROOT/Uebersicht/Uebersicht-Prefix.pch" \
   $(ls "$ROOT"/Uebersicht/*.m | grep -v UBPreferencesController.m) \
   "$ROOT/Pods/SocketRocket/SocketRocket/SRWebSocket.m" \
-  -o "$APP/Contents/MacOS/Übersicht"
+  -o "$APP/Contents/MacOS/Ruecksicht"
 
-cp -R "$ROOT/Pods/Sparkle/Sparkle.framework" "$APP/Contents/Frameworks/"
-cp "$ROOT/core/.build/release/ubersichtd" "$APP/Contents/Resources/"
-
-# The daemon resolves both of these relative to its own location, so they must
-# sit beside it: the SwiftPM resource bundle holds the transform kernel, and
-# esbuild is the bundler itself.
-cp -R "$ROOT/core/.build/release/UebersichtCore_UebersichtCore.bundle" "$APP/Contents/Resources/"
+# The daemon and its tools live beside the main executable, not in Resources:
+# nested code sealed as a resource invalidates the enclosing signature. The
+# daemon resolves the other two relative to its own location -- esbuild is the
+# bundler, and the kernel hosts the CoffeeScript and classic-widget compilers.
+cp "$ROOT/core/.build/release/ubersichtd" "$APP/Contents/MacOS/"
 cp "$ROOT/server/node_modules/@esbuild/darwin-$(uname -m | sed 's/x86_64/x64/')/bin/esbuild" \
-  "$APP/Contents/Resources/esbuild"
+  "$APP/Contents/MacOS/esbuild"
+cp "$ROOT/core/.build/release/UebersichtCore_UebersichtCore.bundle/transform-kernel.js" \
+  "$APP/Contents/Resources/transform-kernel.js"
 
 cp -R "$ROOT/server/public/." "$APP/Contents/Resources/"
 cp "$ROOT"/Uebersicht/*.png "$ROOT"/Uebersicht/*.js "$APP/Contents/Resources/" 2>/dev/null || true
-cp "$ROOT/Uebersicht/Uebersicht.sdef" "$APP/Contents/Resources/"
+cp "$ROOT/Uebersicht/Uebersicht.sdef" "$APP/Contents/Resources/Rücksicht.sdef"
 
-# ibtool needs Xcode's IDE plugins, which are broken on this machine. Where a
-# released build is installed, its nibs come from these same xibs.
-INSTALLED="/Applications/Übersicht.app/Contents/Resources"
-if ibtool --compile "$APP/Contents/Resources/MainMenu.nib" \
-      "$ROOT/Uebersicht/Base.lproj/MainMenu.xib" 2>/dev/null; then
-  ibtool --compile "$APP/Contents/Resources/UBPreferencesController.nib" \
-      "$ROOT/Uebersicht/UBPreferencesController.xib"
-elif [ -d "$INSTALLED" ]; then
-  echo "ibtool unavailable; taking compiled nibs from $INSTALLED"
-  mkdir -p "$APP/Contents/Resources/Base.lproj"
-  cp -R "$INSTALLED"/Base.lproj/*.nib "$APP/Contents/Resources/Base.lproj/"
-  cp -R "$INSTALLED"/*.nib "$APP/Contents/Resources/"
-else
-  echo "no way to produce nibs: ibtool is unavailable and no installed build to copy from" >&2
-  exit 1
-fi
+# Branding overrides the upstream artwork copied by the glob above, so it has to
+# land after it. The status icon is a template image loaded by bare name.
+cp "$ROOT/Uebersicht/branding/status-icon.png" "$APP/Contents/Resources/status-icon.png"
+cp "$ROOT/Uebersicht/branding/status-icon@2x.png" "$APP/Contents/Resources/status-icon@2x.png"
+cp "$ROOT/Uebersicht/branding/Ruecksicht.icns" "$APP/Contents/Resources/Rücksicht.icns"
+cp "$ROOT/Uebersicht/branding/ruecksicht-logo.png" "$APP/Contents/Resources/ruecksicht-logo.png"
+cp "$ROOT/Uebersicht/GettingStarted.jsx" "$APP/Contents/Resources/GettingStarted.jsx"
 
-# An app whose menu never appears is not a build worth shipping.
-[ -f "$APP/Contents/Resources/Base.lproj/MainMenu.nib" ] || {
-  echo "MainMenu.nib missing from the bundle" >&2; exit 1
-}
-
-# Nor is one whose daemon cannot bundle a widget. These resolve from the
-# daemon's own directory, so their absence only shows up once launched.
-for required in ubersichtd esbuild UebersichtCore_UebersichtCore.bundle; do
-  [ -e "$APP/Contents/Resources/$required" ] || {
+# A build that cannot bundle a widget, draw itself, or seed a first widget
+# directory is not worth shipping. The daemon's three resolve from its own
+# directory, so their absence only shows up once launched.
+for required in MacOS/ubersichtd MacOS/esbuild Resources/transform-kernel.js \
+                Resources/status-icon.png Resources/Rücksicht.icns \
+                Resources/ruecksicht-logo.png Resources/GettingStarted.jsx; do
+  [ -e "$APP/Contents/$required" ] || {
     echo "$required missing from the bundle" >&2; exit 1
   }
 done
 
 cp "$ROOT/Uebersicht/Uebersicht-Info.plist" "$APP/Contents/Info.plist"
-plutil -replace CFBundleExecutable -string "Übersicht" "$APP/Contents/Info.plist"
-plutil -replace CFBundleIdentifier -string "tracesOf.Uebersicht" "$APP/Contents/Info.plist"
-plutil -replace CFBundleName -string "Übersicht" "$APP/Contents/Info.plist"
-plutil -remove SUFeedURL "$APP/Contents/Info.plist" 2>/dev/null || true
+plutil -replace CFBundleExecutable -string "Ruecksicht" "$APP/Contents/Info.plist"
+plutil -replace CFBundleIdentifier -string "$BUNDLE_ID" "$APP/Contents/Info.plist"
+plutil -replace CFBundleName -string "Rücksicht" "$APP/Contents/Info.plist"
+plutil -replace CFBundleShortVersionString -string "$VERSION" "$APP/Contents/Info.plist"
+plutil -replace CFBundleVersion -string "$BUILD" "$APP/Contents/Info.plist"
+plutil -replace CFBundleIconFile -string "Rücksicht" "$APP/Contents/Info.plist"
+plutil -replace OSAScriptingDefinition -string "Rücksicht.sdef" "$APP/Contents/Info.plist"
+plutil -replace LSMinimumSystemVersion -string "13.0" "$APP/Contents/Info.plist"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 
-# Ad-hoc signing is best effort: it is not required to run a local build, and
-# codesign itself is broken on machines with a partial Xcode install.
-codesign --force --deep --sign - "$APP" 2>/dev/null || echo "note: ad-hoc signing unavailable"
-echo "built $APP"
+# Inside out, and never --deep: the SwiftPM resource bundle carries no recognized
+# bundle format, and --deep crashes recursing into it rather than skipping it. It
+# holds no code, so being sealed as an ordinary resource of the app is correct.
+codesign --force --sign - "$APP/Contents/MacOS/esbuild"
+codesign --force --sign - "$APP/Contents/MacOS/ubersichtd"
+codesign --force --sign - "$APP"
+codesign --verify --strict "$APP"
+
+echo "built $APP ($VERSION build $BUILD)"

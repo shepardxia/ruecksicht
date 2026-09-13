@@ -12,6 +12,7 @@
 #import "UBDispatcher.h"
 #import "UBWidgetForScripting.h"
 #import "UBPreferencesController.h"
+#import "UBMenu.h"
 
 @implementation UBWidgetsController {
     UBWidgetsStore* widgets;
@@ -290,7 +291,12 @@ static NSInteger const WIDGET_MENU_ITEM_TAG = 42;
 
 -(NSInteger)indexOfWidgetMenuItems:(NSMenu*)menu
 {
-    return [menu indexOfItem:[menu itemWithTitle:@"Check for Updates..."]] + 2;
+    for (NSMenuItem* item in [menu itemArray]) {
+        if ([item.identifier isEqualToString:UBWidgetSectionAnchor]) {
+            return [menu indexOfItem:item];
+        }
+    }
+    return [menu numberOfItems];
 }
 
 

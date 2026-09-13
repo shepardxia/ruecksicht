@@ -1,6 +1,6 @@
 //
 //  UBPreferencesController.h
-//  Übersicht
+//  Übersicht
 //
 //  Created by Felix Hageloh on 20/3/14.
 //  Copyright (c) 2014 Felix Hageloh.
@@ -14,13 +14,11 @@
 
 @interface UBPreferencesController : NSWindowController
 
-@property (weak) IBOutlet NSPopUpButton *filePicker;
 @property BOOL startAtLogin;
-@property BOOL compatibilityMode;
 @property NSURL* widgetDir;
 @property BOOL loginShell;
 @property BOOL enableInteraction;
 
-- (IBAction)showFilePicker:(id)sender;
+- (void)showFilePicker:(id)sender;
 
 @end

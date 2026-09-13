@@ -1,6 +1,6 @@
 //
 //  main.m
-//  Übersicht
+//  Übersicht
 //
 //  Created by Felix Hageloh on 20/9/13.
 //  Copyright (c) 2013 Felix Hageloh.
@@ -11,8 +11,22 @@
 //  details.
 
 #import <Cocoa/Cocoa.h>
+#import "UBAppDelegate.h"
+#import "UBApplication.h"
+#import "UBMenu.h"
+
+// NSApplication holds its delegate weakly, so the delegate needs an owner that
+// outlives the run loop.
+static UBAppDelegate* appDelegate;
 
 int main(int argc, const char * argv[])
 {
-    return NSApplicationMain(argc, argv);
+    @autoreleasepool {
+        NSApplication* app = [UBApplication sharedApplication];
+        appDelegate = [[UBAppDelegate alloc] init];
+        app.delegate = appDelegate;
+        app.mainMenu = [UBMenu mainMenu];
+        [app run];
+    }
+    return 0;
 }

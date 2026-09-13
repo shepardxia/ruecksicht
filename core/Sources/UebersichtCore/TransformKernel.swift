@@ -19,7 +19,7 @@ public final class TransformKernel {
 
     public init() throws {
         guard
-            let url = Bundle.module.url(forResource: "transform-kernel", withExtension: "js"),
+            let url = Self.locate(),
             let source = try? String(contentsOf: url, encoding: .utf8)
         else { throw KernelError.kernelMissing }
 
@@ -42,6 +42,28 @@ public final class TransformKernel {
         )
         context.evaluateScript(source)
         if let thrown { throw KernelError.kernelFailed(thrown) }
+    }
+
+    /// A packaged build ships the kernel in the app's Resources, one level up
+    /// from the daemon. It cannot sit beside the daemon in MacOS/, where macOS
+    /// treats every file as code and refuses to seal an unsigned one; and the
+    /// SwiftPM resource bundle cannot ship inside an .app at all, carrying no
+    /// bundle format codesign recognizes. Both remain development fallbacks.
+    private static func locate() -> URL? {
+        guard let executable = Bundle.main.executableURL?.deletingLastPathComponent() else {
+            return Bundle.module.url(forResource: "transform-kernel", withExtension: "js")
+        }
+
+        let candidates = [
+            executable.deletingLastPathComponent()
+                .appendingPathComponent("Resources/transform-kernel.js"),
+            executable.appendingPathComponent("transform-kernel.js"),
+        ]
+        for candidate in candidates
+        where FileManager.default.isReadableFile(atPath: candidate.path) {
+            return candidate
+        }
+        return Bundle.module.url(forResource: "transform-kernel", withExtension: "js")
     }
 
     /// Compiles a widget's source to the JavaScript esbuild will bundle.

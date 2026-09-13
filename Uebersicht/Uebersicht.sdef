@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE dictionary SYSTEM "file://localhost/System/Library/DTDs/sdef.dtd">
 
-<dictionary title="Übersicht">
-    <suite name="Übersicht Suite" code="uebt" description="Übersicht Scripts">
+<dictionary title="Rücksicht">
+    <suite name="Rücksicht Suite" code="uebt" description="Rücksicht Scripts">
         <command name="refresh" code="wigetrfs" description="Refresh all widgets.">
             <cocoa class="UBRefreshCommand"/>
             <direct-parameter description="A widget." type="widget"/>

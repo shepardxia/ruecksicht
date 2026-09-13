@@ -45,8 +45,6 @@
 	<string>Copyright © 2019 Felix Hageloh. Released under the GNU General Public License v3.</string>
 	<key>NSLocationUsageDescription</key>
 	<string>A widget would like to access your current locatiuon.</string>
-	<key>NSMainNibFile</key>
-	<string>MainMenu</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>A widget would like to access your Photo Library.</string>
 	<key>NSPrincipalClass</key>
@@ -57,7 +55,5 @@
 	<true/>
 	<key>OSAScriptingDefinition</key>
 	<string>Uebersicht.sdef</string>
-	<key>SUFeedURL</key>
-	<string>https://raw.githubusercontent.com/felixhageloh/uebersicht/gh-pages/updates.xml.rss</string>
 </dict>
 </plist>

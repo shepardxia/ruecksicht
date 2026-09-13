@@ -132,12 +132,6 @@ int const MAX_DISPLAYS = 42;
 }
 
 
-
--(NSInteger)indexOfScreenMenuItems:(NSMenu*)menu
-{
-    return [menu indexOfItem:[menu itemWithTitle:@"Check for Updates..."]] + 2;
-}
-
 // can't belive you are making. me. do. this.
 static CFDictionaryRef getDisplayInfoDictionary(CGDirectDisplayID displayID)
 {

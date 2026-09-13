@@ -1,5 +1,6 @@
-// This is a simple example Widget to get you started with Übersicht.
-// For the full documentation please visit:
+// This is a simple example Widget to get you started with Rücksicht.
+// Rücksicht runs Übersicht's widget format unchanged, so that project's
+// documentation is also the reference for writing widgets here:
 // https://github.com/felixhageloh/uebersicht
 
 // You can modify this widget as you see fit, or simply delete this file to
@@ -53,7 +54,7 @@ export const render = ({output}) => {
     <div>
       <h1>Hi, {output}</h1>
       <p>
-        Thanks for trying out Übersicht!
+        Thanks for trying out Rücksicht!
         This is an example widget to get you started.
       </p>
       <p>

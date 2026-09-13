@@ -4,8 +4,12 @@ import Foundation
 ///
 /// esbuild ships as a native executable, so bundling needs no JavaScript
 /// runtime of its own. A bundle registers its exports on globalThis.__ubWidgets
-/// under the widget's id, and resolves `uebersicht` to the page's own copy so
-/// React and emotion are shared rather than duplicated per widget.
+/// under the widget's id, and resolves the widget API module to the page's own
+/// copy so React and emotion are shared rather than duplicated per widget.
+///
+/// That module answers to both `ruecksicht` and `uebersicht`: the import name is
+/// part of the widget format, and widgets written for Übersicht are meant to run
+/// here unmodified.
 public final class Bundler {
     private let esbuild: String
     private let shimPath: String
@@ -130,6 +134,7 @@ public final class Bundler {
             "--jsx-fragment=html.Fragment",
             "--loader:.js=jsx",
             "--alias:uebersicht=\(shimPath)",
+            "--alias:ruecksicht=\(shimPath)",
             "--footer:js=\(footer)",
         ]
         if widget.path.hasSuffix(".jsx") { arguments.append("--loader:.jsx=jsx") }

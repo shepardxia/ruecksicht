@@ -19,10 +19,12 @@
 #import "UBWidgetsStore.h"
 #import "UBWebSocket.h"
 #import "UBWindowsController.h"
+#import "UBMenu.h"
 
 int const PORT = 41416;
 
 @implementation UBAppDelegate {
+    NSMenu* statusBarMenu;
     NSStatusItem* statusBarItem;
     NSTask* widgetServer;
     UBPreferencesController* preferences;
@@ -36,15 +38,12 @@ int const PORT = 41416;
     BOOL needsRefresh;
 }
 
-@synthesize statusBarMenu;
-
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification
 {
     needsRefresh = YES;
+    statusBarMenu = [UBMenu statusBarMenuWithTarget:self];
     statusBarItem = [self addStatusItemToMenu: statusBarMenu];
-    preferences = [[UBPreferencesController alloc]
-        initWithWindowNibName:@"UBPreferencesController"
-    ];
+    preferences = [[UBPreferencesController alloc] init];
 
     // NSTask doesn't terminate when xcode stop is pressed. Other ways of
     // spawning the server, like system() or popen() have the same problem.
@@ -221,7 +220,7 @@ int const PORT = 41416;
                        onExit:(void (^)(NSTask*))exitHandler
 {
     NSBundle* bundle     = [NSBundle mainBundle];
-    NSString* serverPath = [bundle pathForResource:@"ubersichtd" ofType:nil];
+    NSString* serverPath = [bundle pathForAuxiliaryExecutable:@"ubersichtd"];
     BOOL loginShell = [[NSUserDefaults standardUserDefaults]
         boolForKey:@"loginShell"
     ];
