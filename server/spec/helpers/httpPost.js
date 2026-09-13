@@ -5,6 +5,9 @@ module.exports = function httpPost(url, postData, callback) {
   var options = URL.parse(url);
   options.method = 'POST';
   options.headers = { 'Content-Length': postData.length };
+  // Specs close a server and start another on the same port; a pooled
+  // keep-alive socket would be reused against the dead one.
+  options.agent = false;
 
   var req = http.request(options, (res) => {
     var buffer = '';

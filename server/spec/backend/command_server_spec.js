@@ -4,10 +4,11 @@ var path = require('path');
 
 var httpGet = require('../helpers/httpGet');
 var httpPost = require('../helpers/httpPost');
-var commandServer = require('../../src/command_server.coffee');
+var commandServer = require('../../src/command_server');
 
 var workingDir = path.resolve(__dirname, path.join('..', 'test_widgets'));
-var server = connect().use(commandServer(workingDir)).listen(8887);
+var cmd = commandServer(workingDir);
+var server = connect().use(cmd).listen(8887);
 
 var url = 'http://localhost:8887/run/';
 
@@ -73,13 +74,15 @@ test('forwarding stderr', (t) => {
 });
 
 test('closing', (t) => {
+  cmd.close();
   server.close();
   t.pass('it closes');
   t.end();
 });
 
 test('using a login shell', (t) => {
-  server = connect().use(commandServer(workingDir, true)).listen(8887);
+  var loginCmd = commandServer(workingDir, true);
+  server = connect().use(loginCmd).listen(8887);
 
   httpPost(url, 'echo $(shopt | grep login_shell)', (res, body) => {
     const lines = body.trim().split('\n');
@@ -88,6 +91,7 @@ test('using a login shell', (t) => {
       'login_shell on',
       'it indeed runs in a login shell',
     );
+    loginCmd.close();
     server.close();
     t.end();
   });

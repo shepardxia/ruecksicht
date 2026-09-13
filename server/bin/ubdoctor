@@ -1,0 +1,72 @@
+#!/usr/bin/env node
+'use strict';
+
+// Pre-upgrade report for a widget directory. Run it before migrating, so a
+// dead widget is something you read about rather than something you notice.
+
+const path = require('path');
+const scan = require('../src/ubdoctor');
+
+const DEFAULT_DIR = path.join(
+  process.env.HOME || '',
+  'Library/Application Support/Übersicht/widgets',
+);
+
+const args = process.argv.slice(2);
+const asJson = args.indexOf('--json') !== -1;
+const dir = args.filter((a) => a.indexOf('--') !== 0)[0] || DEFAULT_DIR;
+
+const report = scan(dir);
+
+if (asJson) {
+  process.stdout.write(JSON.stringify(report, null, 2) + '\n');
+  process.exit(report.error ? 1 : 0);
+}
+
+if (report.error) {
+  process.stderr.write(report.error + '\n');
+  process.exit(1);
+}
+
+const MARK = {warn: '!', info: '-', ok: '+'};
+
+process.stdout.write('\nubdoctor  ' + report.root + '\n');
+process.stdout.write(
+  report.widgetCount +
+    ' widget(s), ' +
+    report.cleanCount +
+    ' need no attention\n\n',
+);
+
+report.widgets.forEach((w) => {
+  const warns = w.findings.filter((f) => f.severity === 'warn').length;
+  process.stdout.write(w.name + (warns ? '  (' + warns + ' to review)' : '  ok') + '\n');
+  w.files.forEach((f) => {
+    f.findings.forEach((finding) => {
+      process.stdout.write(
+        '  ' +
+          MARK[finding.severity] +
+          ' ' +
+          f.file +
+          (finding.line ? ':' + finding.line : '') +
+          '  ' +
+          finding.code +
+          '\n      ' +
+          finding.detail +
+          '\n',
+      );
+    });
+  });
+  process.stdout.write('\n');
+});
+
+const codes = Object.keys(report.summary).sort(
+  (a, b) => report.summary[b] - report.summary[a],
+);
+if (codes.length) {
+  process.stdout.write('totals\n');
+  codes.forEach((c) =>
+    process.stdout.write('  ' + String(report.summary[c]).padStart(4) + '  ' + c + '\n'),
+  );
+  process.stdout.write('\n');
+}

@@ -12,6 +12,27 @@
 #import "UBWindow.h"
 
 
+// Owned by the shared configuration, which retains its message handlers for the
+// lifetime of the app. It must therefore not be a web view controller, or that
+// controller and its web view could never be released.
+@interface UBWidgetInteraction : NSObject<WKScriptMessageHandler>
+@end
+
+@implementation UBWidgetInteraction
+
+- (void)userContentController:(WKUserContentController *)controller
+    didReceiveScriptMessage:(WKScriptMessage *)message
+{
+    if ([message.body isEqual: @"widgetEnter"]) {
+        [message.webView.window setIgnoresMouseEvents: NO];
+    } else if ([message.body isEqual:@"widgetLeave"]) {
+        [message.webView.window setIgnoresMouseEvents: YES];
+    }
+}
+
+@end
+
+
 @implementation UBWebViewController {
     NSURL* url;
 }
@@ -83,6 +104,9 @@
 {
     webView.navigationDelegate = nil;
     [webView stopLoading:self];
+    // Dropping the loaded document releases the page WebKit holds its
+    // inspectable-content sleep assertion against.
+    [webView loadHTMLString:@"" baseURL:nil];
     [webView removeFromSuperview];
 }
 
@@ -132,7 +156,10 @@
         forMainFrameOnly: YES
     ]];
     
-    [ucController addScriptMessageHandler: self name: @"uebersicht"];
+    [ucController
+        addScriptMessageHandler: [[UBWidgetInteraction alloc] init]
+        name: @"uebersicht"
+    ];
     
     WKWebViewConfiguration* config = [[WKWebViewConfiguration alloc] init];
     config.userContentController = ucController;
@@ -199,16 +226,6 @@
         withObject: url
         afterDelay: 5.0
     ];
-}
-
-- (void)userContentController:(WKUserContentController *)controller
-    didReceiveScriptMessage:(WKScriptMessage *) message
-{
-    if ([message.body isEqual: @"widgetEnter"]) {
-        [message.webView.window setIgnoresMouseEvents: NO];
-    } else if ([message.body isEqual:@"widgetLeave"]) {
-        [message.webView.window setIgnoresMouseEvents: YES];
-    }
 }
 
 @end

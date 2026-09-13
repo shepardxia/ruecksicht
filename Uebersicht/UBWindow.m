@@ -67,12 +67,20 @@
     [webViewController reload];
 }
 
-// TODO: check if we can do at least some cleanups in webViewController#destroy
-//- (void)close
-//{
-//    [webViewController destroy];
-//    [super close];
-//}
+// The web view must be torn down here, not left to ARC. Screen parameter
+// changes close and rebuild windows, and a web view that outlives its window
+// keeps the sleep-prevention assertion WebKit holds for inspectable content.
+- (void)close
+{
+    if (trackingArea != nil) {
+        [self.contentView removeTrackingArea:trackingArea];
+        trackingArea = nil;
+    }
+    [webViewController destroy];
+    webViewController = nil;
+    [self setContentView:nil];
+    [super close];
+}
 
 #
 #pragma mark tracking area

@@ -1,5 +1,6 @@
 const css = require('emotion').css;
 const RenderLoop = require('./RenderLoop');
+const AnimationLoop = require('./AnimationLoop');
 const Timer = require('./Timer');
 const runShellCommand = require('./runShellCommand');
 const ReactDom = require('react-dom');
@@ -10,6 +11,7 @@ window.html = html;
 const defaults = {
   id: 'widget',
   refreshFrequency: 1000,
+  animationFrequency: AnimationLoop.DEFAULT_FREQUENCY,
   init: function init() {},
   render: function render(props) {
     return html('div', null, props.error ? String(props.error) : props.output);
@@ -19,6 +21,9 @@ const defaults = {
   },
   initialState: {output: ''},
 };
+
+// One clock per page, shared by every animating widget on it.
+const animationLoop = AnimationLoop();
 
 module.exports = function VirtualDomWidget(widgetObject) {
   const api = {};
@@ -48,8 +53,26 @@ module.exports = function VirtualDomWidget(widgetObject) {
     run();
   }
 
+  // `refreshFrequency` is the data cadence; motion runs on its own clock so a
+  // widget that wants smooth movement no longer has to re-run its command at
+  // frame rate to get it.
+  function startAnimating() {
+    if (typeof implementation.animate !== 'function') return;
+    animationLoop.add(
+      implementation.id,
+      (dtMs) => {
+        const next = implementation.animate(renderLoop.state, dtMs);
+        if (next !== undefined) renderLoop.update(next);
+        return next;
+      },
+      implementation.animationFrequency,
+      handleError,
+    );
+  }
+
   function run() {
     implementation.init(dispatch);
+    startAnimating();
     if (!implementation.command) return;
     commandLoop = Timer()
       .start()
@@ -89,6 +112,8 @@ module.exports = function VirtualDomWidget(widgetObject) {
     try {
       const nextState = implementation.updateState(event, renderLoop.state);
       renderLoop.update(nextState);
+      // New data revives an animation that had settled and parked itself.
+      animationLoop.wake(implementation.id);
     } catch (err) {
       handleError(err);
     }
@@ -134,6 +159,7 @@ module.exports = function VirtualDomWidget(widgetObject) {
   };
 
   api.destroy = function destroy() {
+    animationLoop.remove(implementation.id);
     commandLoop && commandLoop.stop();
     if (contentEl && contentEl.parentNode) {
       contentEl.parentNode.removeChild(contentEl);
@@ -144,6 +170,7 @@ module.exports = function VirtualDomWidget(widgetObject) {
   };
 
   api.update = function update(newImplementation) {
+    animationLoop.remove(implementation.id);
     commandLoop && commandLoop.stop();
     contentEl.classList.remove(css(implementation.className));
     init(newImplementation);
