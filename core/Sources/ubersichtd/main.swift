@@ -82,8 +82,11 @@ func jsonString(_ value: String) -> String {
 }
 
 func widgetPayload(_ widget: Widget) -> String {
+    // No "error" key when there is no error: the app reads it as `if (error)`,
+    // and a JSON null deserializes to NSNull, which is not nil. Every healthy
+    // widget would look like a failing one.
     return """
-        {"id":\(jsonString(widget.id)),"filePath":\(jsonString(widget.path)),"error":null,\
+        {"id":\(jsonString(widget.id)),"filePath":\(jsonString(widget.path)),\
         "serverDriven":\(index.isServerDriven(widget.id)),\
         "mtime":\(Int(widget.modified.timeIntervalSince1970 * 1000))}
         """
@@ -273,4 +276,17 @@ Task {
 
 signal(SIGINT) { _ in exit(0) }
 signal(SIGTERM) { _ in exit(0) }
+
+// The app is the only reason this process exists. If it goes away without
+// terminating us -- a crash, a kill -9 -- the daemon would otherwise keep the
+// port bound and keep running widget commands forever.
+// Held at top level: a timer source that goes out of scope is cancelled.
+let parentWatch = DispatchSource.makeTimerSource(
+    queue: DispatchQueue(label: "ub.parent", qos: .background)
+)
+if getppid() != 1 {
+    parentWatch.schedule(deadline: .now() + 2, repeating: 2, leeway: .seconds(1))
+    parentWatch.setEventHandler { if getppid() == 1 { exit(0) } }
+    parentWatch.resume()
+}
 dispatchMain()
