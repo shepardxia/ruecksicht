@@ -25,6 +25,14 @@ clang -fobjc-arc -fmodules -mmacosx-version-min=13.0 -isysroot "$SDK" \
 
 cp -R "$ROOT/Pods/Sparkle/Sparkle.framework" "$APP/Contents/Frameworks/"
 cp "$ROOT/core/.build/release/ubersichtd" "$APP/Contents/Resources/"
+
+# The daemon resolves both of these relative to its own location, so they must
+# sit beside it: the SwiftPM resource bundle holds the transform kernel, and
+# esbuild is the bundler itself.
+cp -R "$ROOT/core/.build/release/UebersichtCore_UebersichtCore.bundle" "$APP/Contents/Resources/"
+cp "$ROOT/server/node_modules/@esbuild/darwin-$(uname -m | sed 's/x86_64/x64/')/bin/esbuild" \
+  "$APP/Contents/Resources/esbuild"
+
 cp -R "$ROOT/server/public/." "$APP/Contents/Resources/"
 cp "$ROOT"/Uebersicht/*.png "$ROOT"/Uebersicht/*.js "$APP/Contents/Resources/" 2>/dev/null || true
 cp "$ROOT/Uebersicht/Uebersicht.sdef" "$APP/Contents/Resources/"
@@ -50,6 +58,14 @@ fi
 [ -f "$APP/Contents/Resources/Base.lproj/MainMenu.nib" ] || {
   echo "MainMenu.nib missing from the bundle" >&2; exit 1
 }
+
+# Nor is one whose daemon cannot bundle a widget. These resolve from the
+# daemon's own directory, so their absence only shows up once launched.
+for required in ubersichtd esbuild UebersichtCore_UebersichtCore.bundle; do
+  [ -e "$APP/Contents/Resources/$required" ] || {
+    echo "$required missing from the bundle" >&2; exit 1
+  }
+done
 
 cp "$ROOT/Uebersicht/Uebersicht-Info.plist" "$APP/Contents/Info.plist"
 plutil -replace CFBundleExecutable -string "Übersicht" "$APP/Contents/Info.plist"

@@ -48,6 +48,16 @@ public final class Bundler {
             return declared
         }
 
+        // A packaged build ships esbuild beside the daemon. This has to come
+        // before any search rooted at the working directory: a launched .app
+        // inherits `/` as its cwd, where nothing resolves.
+        if let beside = Bundle.main.executableURL?
+            .deletingLastPathComponent()
+            .appendingPathComponent("esbuild").path,
+           FileManager.default.isExecutableFile(atPath: beside) {
+            return beside
+        }
+
         let candidates = [
             "node_modules/@esbuild/darwin-arm64/bin/esbuild",
             "node_modules/@esbuild/darwin-x64/bin/esbuild",
