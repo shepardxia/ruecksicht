@@ -23,8 +23,11 @@ module.exports = function WidgetBundler() {
     }
   };
 
+  // Callers treat a miss as a 404; throwing here surfaced an unknown id as a
+  // 500 with a stack trace instead.
   api.get = function get(id) {
-    return bundles[id].widget.body;
+    var bundle = bundles[id];
+    return bundle && bundle.widget ? bundle.widget.body : undefined;
   };
 
   function addWidget(id, filePath, emit) {

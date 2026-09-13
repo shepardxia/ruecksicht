@@ -80,3 +80,14 @@ test('closing', (t) => {
   t.pass('it closes');
   t.end();
 });
+
+test('an unknown widget id is a miss, not a throw', function (t) {
+  var bundler = WidgetBundler(function () {});
+  t.equal(
+    bundler.get('no-such-widget'),
+    undefined,
+    'it returns undefined so the caller can 404',
+  );
+  bundler.close();
+  t.end();
+});
