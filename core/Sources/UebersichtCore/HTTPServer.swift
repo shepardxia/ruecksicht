@@ -38,6 +38,9 @@ public final class HTTPServer {
 
     private let listener: NWListener
     private let handler: Handler
+    /// Called instead of `handler` when a request asks to switch protocols; the
+    /// connection then belongs to the caller and is not closed here.
+    public var onUpgrade: ((NWConnection, String) -> Void)?
     private let queue = DispatchQueue(label: "ub.http", qos: .userInitiated)
 
     public init(port: UInt16, handler: @escaping Handler) throws {
@@ -75,6 +78,19 @@ public final class HTTPServer {
             guard let request = Self.parse(accumulated) else {
                 // Headers or body still incomplete; wait for the rest.
                 self.receive(on: connection, buffer: accumulated)
+                return
+            }
+
+            if let key = request.headers["sec-websocket-key"],
+               request.headers["upgrade"]?.lowercased() == "websocket",
+               let upgrade = self.onUpgrade {
+                // Hand the connection over before replying: arming the read
+                // inside the send completion raced the client's first frame.
+                upgrade(connection, key)
+                connection.send(
+                    content: WebSocketHub.acceptResponse(forKey: key),
+                    completion: .contentProcessed { _ in }
+                )
                 return
             }
 

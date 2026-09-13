@@ -68,6 +68,15 @@ do {
 }
 
 let allowedOrigin = "http://127.0.0.1:\(options.port)"
+let hub = WebSocketHub()
+
+func widgetPayload(_ widget: Widget) -> String {
+    let escapedPath = widget.path.replacingOccurrences(of: "\"", with: "\\\"")
+    return """
+        {"id":"\(widget.id)","filePath":"\(escapedPath)","error":null,\
+        "mtime":\(Int(widget.modified.timeIntervalSince1970 * 1000))}
+        """
+}
 
 func contentType(for path: String) -> String {
     switch (path as NSString).pathExtension.lowercased() {
@@ -166,7 +175,32 @@ let server = try HTTPServer(port: options.port) { request in
     return HTTPResponse.text("not found", status: 404)
 }
 
+server.onUpgrade = { connection, _ in hub.add(connection) }
 server.start()
+
+// Widget edits reach the pages over the live channel; without it a save would
+// only show up on a reload.
+var known = Set(WidgetDirectory.scan(options.widgetDirectory).map(\.id))
+let watcher = DirectoryWatcher(path: options.widgetDirectory) { changes in
+    if changes.contains(.masterStyle) {
+        hub.broadcast("{\"type\":\"MASTER_STYLE_CHANGED\"}")
+    }
+    guard changes.contains(.widgets) else { return }
+
+    let current = WidgetDirectory.scan(options.widgetDirectory)
+    let currentIds = Set(current.map(\.id))
+
+    for gone in known.subtracting(currentIds) {
+        hub.broadcast("{\"type\":\"WIDGET_REMOVED\",\"payload\":\"\(gone)\"}")
+    }
+    // Every present widget is re-announced: an edit to one that already exists
+    // is a change the pages have to pick up, not just an addition.
+    for widget in current {
+        hub.broadcast("{\"type\":\"WIDGET_ADDED\",\"payload\":\(widgetPayload(widget))}")
+    }
+    known = currentIds
+}
+watcher.start()
 
 let widgets = WidgetDirectory.scan(options.widgetDirectory)
 // The app watches this line to know the port is live.
