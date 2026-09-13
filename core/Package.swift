@@ -5,10 +5,11 @@ let package = Package(
     name: "UebersichtCore",
     platforms: [.macOS(.v13)],
     products: [
-        .library(name: "UebersichtCore", targets: ["UebersichtCore"])
+        .library(name: "UebersichtCore", targets: ["UebersichtCore"]),
+        .executable(name: "ubersichtd", targets: ["ubersichtd"]),
     ],
     targets: [
         .target(name: "UebersichtCore"),
-        .testTarget(name: "UebersichtCoreTests", dependencies: ["UebersichtCore"]),
+        .executableTarget(name: "ubersichtd", dependencies: ["UebersichtCore"]),
     ]
 )
