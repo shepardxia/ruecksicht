@@ -12,9 +12,23 @@ public final class Bundler {
     private let cacheDirectory: String
     private var cache: [String: (source: String, modified: Date)] = [:]
     private let lock = NSLock()
+    private let kernel: TransformKernel
 
-    public init?(esbuildPath: String? = nil, cacheDirectory: String) {
-        guard let binary = esbuildPath ?? Self.locate() else { return nil }
+    public enum SetupError: Error, CustomStringConvertible {
+        case esbuildMissing
+        case kernel(Error)
+
+        public var description: String {
+            switch self {
+            case .esbuildMissing: return "could not find the esbuild binary"
+            case .kernel(let error): return "transform kernel failed to load: \(error)"
+            }
+        }
+    }
+
+    public init(esbuildPath: String? = nil, cacheDirectory: String) throws {
+        guard let binary = esbuildPath ?? Self.locate() else { throw SetupError.esbuildMissing }
+        do { self.kernel = try TransformKernel() } catch { throw SetupError.kernel(error) }
         self.esbuild = binary
         self.cacheDirectory = cacheDirectory
         self.shimPath = (cacheDirectory as NSString).appendingPathComponent("uebersicht-shim.js")
@@ -62,8 +76,21 @@ public final class Bundler {
             &&Object.keys(__ubWidget).length===1?__ubWidget.default:__ubWidget;
             """
 
+        // CoffeeScript and classic object-literal widgets are compiled to
+        // JavaScript first; esbuild understands neither.
+        var entry = widget.path
+        if widget.isCoffee || widget.path.hasSuffix(".js") {
+            let source = try String(contentsOfFile: widget.path, encoding: .utf8)
+            let compiled = try kernel.transform(
+                source: source, id: widget.id, isCoffee: widget.isCoffee
+            )
+            entry = (cacheDirectory as NSString)
+                .appendingPathComponent("\(widget.id).entry.js")
+            try compiled.write(toFile: entry, atomically: true, encoding: .utf8)
+        }
+
         var arguments = [
-            widget.path,
+            entry,
             "--bundle",
             "--format=iife",
             "--global-name=__ubWidget",
@@ -77,6 +104,7 @@ public final class Bundler {
             "--footer:js=\(footer)",
         ]
         if widget.path.hasSuffix(".jsx") { arguments.append("--loader:.jsx=jsx") }
+        arguments.append("--resolve-extensions=.jsx,.js,.json")
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: esbuild)

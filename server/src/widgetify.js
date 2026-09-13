@@ -58,10 +58,15 @@ function parseStyle(styleProp, widetId, tree) {
     + '\n  '
     + styleString.replace(/\n/g, '\n  ');
 
-  var css = stylus(scopedStyle)
-    .import('nib')
-    .use(nib())
-    .render();
+  // nib's mixin library resolves its imports from disk. Where there is no
+  // filesystem to resolve them against, plain stylus still compiles everything
+  // that does not use a nib mixin, which is the overwhelming majority.
+  var css;
+  try {
+    css = stylus(scopedStyle).import('nib').use(nib()).render();
+  } catch (e) {
+    css = stylus(scopedStyle).render();
+  }
 
   styleProp.key.name = 'css';
   styleProp.value.type = 'Literal';

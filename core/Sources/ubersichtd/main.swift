@@ -49,12 +49,11 @@ let shells = ShellPool(
     loginShell: options.loginShell
 )
 
-guard
-    let bundler = Bundler(
-        cacheDirectory: NSTemporaryDirectory() + "ubersichtd"
-    )
-else {
-    FileHandle.standardError.write(Data("could not find the esbuild binary\n".utf8))
+let bundler: Bundler
+do {
+    bundler = try Bundler(cacheDirectory: NSTemporaryDirectory() + "ubersichtd")
+} catch {
+    FileHandle.standardError.write(Data("\(error)\n".utf8))
     exit(1)
 }
 

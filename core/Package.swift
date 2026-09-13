@@ -9,7 +9,10 @@ let package = Package(
         .executable(name: "ubersichtd", targets: ["ubersichtd"]),
     ],
     targets: [
-        .target(name: "UebersichtCore"),
+        .target(
+            name: "UebersichtCore",
+            resources: [.copy("Resources/transform-kernel.js")]
+        ),
         .executableTarget(name: "ubersichtd", dependencies: ["UebersichtCore"]),
     ]
 )

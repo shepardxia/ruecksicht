@@ -217,8 +217,7 @@ int const PORT = 41416;
                        onExit:(void (^)(NSTask*))exitHandler
 {
     NSBundle* bundle     = [NSBundle mainBundle];
-    NSString* nodePath   = [bundle pathForResource:@"localnode" ofType:nil];
-    NSString* serverPath = [bundle pathForResource:@"server" ofType:@"js"];
+    NSString* serverPath = [bundle pathForResource:@"ubersichtd" ofType:nil];
     BOOL loginShell = [[NSUserDefaults standardUserDefaults]
         boolForKey:@"loginShell"
     ];
@@ -246,14 +245,15 @@ int const PORT = 41416;
         });
     };
     
-    [task setLaunchPath:nodePath];
-    [task setArguments:@[
-        serverPath,
+    NSMutableArray* arguments = [@[
         @"-d", widgetPath,
         @"-p", [NSString stringWithFormat:@"%d", PORT + portOffset],
-        @"-s", [[self getPreferencesDir] path],
-        loginShell ? @"--login-shell" : @""
-    ]];
+        @"--public", [bundle resourcePath]
+    ] mutableCopy];
+    if (loginShell) [arguments addObject:@"--login-shell"];
+
+    [task setLaunchPath:serverPath];
+    [task setArguments:arguments];
     
     [task launch];
     return task;
