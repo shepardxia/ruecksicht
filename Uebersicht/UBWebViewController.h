@@ -13,6 +13,7 @@
 
 @property (strong, readonly) NSView* view;
 
++ (NSString*)sessionToken;
 - (id)initWithFrame:(NSRect)frame;
 - (void)load:(NSURL*)url;
 - (void)reload;

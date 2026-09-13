@@ -11,6 +11,7 @@ function isKeepAliveError(err) {
 module.exports = function runShellCommand(command, callback) {
   const request = post('/run/')
     .retry(2, isKeepAliveError)
+    .set('X-Ubersicht-Token', window.__ubToken || '')
     .send(command);
   return callback
     ? request.end((err, res) => callback(wrapError(err, res), (res || {}).text))

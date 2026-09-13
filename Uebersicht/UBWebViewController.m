@@ -37,6 +37,18 @@
     NSURL* url;
 }
 
+// Minted once per launch and required by the widget server on /run/, so that
+// another local process cannot reach an endpoint that runs shell commands.
++ (NSString*)sessionToken
+{
+    static NSString* token = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        token = [[NSUUID UUID] UUIDString];
+    });
+    return token;
+}
+
 @synthesize view;
 
 - (id)initWithFrame:(NSRect)frame
@@ -160,6 +172,15 @@
         addScriptMessageHandler: [[UBWidgetInteraction alloc] init]
         name: @"uebersicht"
     ];
+
+    NSString* tokenScript = [NSString
+        stringWithFormat: @"window.__ubToken = '%@';", [UBWebViewController sessionToken]
+    ];
+    [ucController addUserScript:[[WKUserScript alloc]
+        initWithSource: tokenScript
+        injectionTime: WKUserScriptInjectionTimeAtDocumentStart
+        forMainFrameOnly: YES
+    ]];
     
     WKWebViewConfiguration* config = [[WKWebViewConfiguration alloc] init];
     config.userContentController = ucController;

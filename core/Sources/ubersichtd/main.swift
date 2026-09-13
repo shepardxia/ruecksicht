@@ -10,6 +10,7 @@ struct Options {
     var widgetDirectory = "\(NSHomeDirectory())/Library/Application Support/Übersicht/widgets"
     var publicDirectory = "server/public"
     var loginShell = false
+    var token: String?
 }
 
 func parseOptions() -> Options {
@@ -33,6 +34,11 @@ func parseOptions() -> Options {
                 options.publicDirectory = value
                 arguments.removeFirst()
             }
+        case "--token":
+            if let value = arguments.first {
+                options.token = value
+                arguments.removeFirst()
+            }
         case "--login-shell":
             options.loginShell = true
         default:
@@ -41,6 +47,10 @@ func parseOptions() -> Options {
     }
     return options
 }
+
+// The app reads this process's stdout through a pipe and watches for the
+// startup line; buffered output would strand it waiting.
+setvbuf(stdout, nil, _IONBF, 0)
 
 let options = parseOptions()
 
@@ -96,10 +106,16 @@ func widgetsJSON() -> String {
 let server = try HTTPServer(port: options.port) { request in
     let path = request.path.components(separatedBy: "?")[0]
 
-    // Any local process can reach the loopback port, so a request that runs a
-    // shell command must come from the page itself.
-    if request.method != "GET", request.headers["origin"] != allowedOrigin {
-        return HTTPResponse.text("", status: 403)
+    // Any local process can reach the loopback port, and /run/ executes shell
+    // commands. An Origin header is trivially forged, so when the app supplies
+    // a per-launch token the page must present it too.
+    if request.method != "GET" {
+        guard request.headers["origin"] == allowedOrigin else {
+            return HTTPResponse.text("", status: 403)
+        }
+        if let token = options.token, request.headers["x-ubersicht-token"] != token {
+            return HTTPResponse.text("", status: 403)
+        }
     }
 
     if request.method == "POST", path == "/run/" {
@@ -153,7 +169,8 @@ let server = try HTTPServer(port: options.port) { request in
 server.start()
 
 let widgets = WidgetDirectory.scan(options.widgetDirectory)
-print("ubersichtd on \(allowedOrigin)")
+// The app watches this line to know the port is live.
+print("server started on port \(options.port)")
 print("watching \(options.widgetDirectory)")
 print("\(widgets.count) widget(s): \(widgets.map(\.id).joined(separator: ", "))")
 

@@ -11,6 +11,7 @@
 //  details.
 
 #import "UBAppDelegate.h"
+#import "UBWebViewController.h"
 #import "UBWindow.h"
 #import "UBPreferencesController.m"
 #import "UBScreensController.h"
@@ -48,7 +49,7 @@ int const PORT = 41416;
     // NSTask doesn't terminate when xcode stop is pressed. Other ways of
     // spawning the server, like system() or popen() have the same problem.
     // So, hit em with a hammer :(
-    system("killall -m node-");
+    system("killall -m ubersichtd");
     
     widgetsStore = [[UBWidgetsStore alloc] init];
 
@@ -248,7 +249,8 @@ int const PORT = 41416;
     NSMutableArray* arguments = [@[
         @"-d", widgetPath,
         @"-p", [NSString stringWithFormat:@"%d", PORT + portOffset],
-        @"--public", [bundle resourcePath]
+        @"--public", [bundle resourcePath],
+        @"--token", [UBWebViewController sessionToken]
     ] mutableCopy];
     if (loginShell) [arguments addObject:@"--login-shell"];
 
