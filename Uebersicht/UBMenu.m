@@ -31,7 +31,7 @@ NSString * const UBWidgetSectionAnchor = @"widgetSectionAnchor";
                                target:target];
     widgetDir.identifier = UBWidgetSectionAnchor;
 
-    [self add:@"Visit Widget Gallery"
+    [self add:@"Visit Übersicht Widget Gallery"
             to:menu
         action:@selector(visitWidgetGallery:)
         target:target];

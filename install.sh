@@ -1,10 +1,23 @@
 #!/bin/bash
-# Installs the built Rücksicht.app into /Applications and makes it the app that
-# starts at login. Pass --replace-uebersicht to also remove an installed
-# Übersicht, its login item, and its preferences; widgets are never touched.
+# Installs a built Rücksicht.app into /Applications and makes it the app that
+# starts at login.
+#
+#   --app PATH             install this bundle instead of the one in ./build
+#   --replace-uebersicht   also remove an installed Übersicht, its login item
+#                          and its preferences; widgets are never touched
 set -e
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-APP="$ROOT/build/Rücksicht.app"
+APP="${BUILD_DIR:-$ROOT/build}/Rücksicht.app"
+REPLACE=""
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --app) APP="$2"; shift 2 ;;
+        --replace-uebersicht) REPLACE=yes; shift ;;
+        *) echo "unknown option: $1" >&2; exit 1 ;;
+    esac
+done
+
 DEST="/Applications/Rücksicht.app"
 BUNDLE_ID="local.ruecksicht.Ruecksicht"
 OLD_APP="/Applications/Übersicht.app"
@@ -48,7 +61,7 @@ osascript -e 'tell application "System Events" to delete login item "Rücksicht"
 osascript -e "tell application \"System Events\" to make login item at end \
     with properties {path:\"$DEST\", hidden:false}" >/dev/null
 
-if [ "$1" = "--replace-uebersicht" ]; then
+if [ -n "$REPLACE" ]; then
     osascript -e 'tell application "System Events" to delete login item "Übersicht"' 2>/dev/null || true
     rm -rf "$OLD_APP"
     rm -f "$HOME/Library/Preferences/$OLD_ID.plist"

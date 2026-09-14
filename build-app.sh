@@ -1,15 +1,43 @@
 #!/bin/bash
-# Builds Rücksicht.app without Xcode: clang for the sources and the SwiftPM
-# daemon copied in as a resource. Every window and menu is built in code, so the
-# app has no nibs.
+# Builds Rücksicht.app without Xcode: clang for the app sources and SwiftPM for
+# the daemon. Every window and menu is built in code, so the app has no nibs.
+#
+# BUILD_DIR puts the bundle somewhere other than ./build, ESBUILD names the
+# esbuild binary to embed, and CODESIGN_IDENTITY signs with a real certificate
+# instead of ad-hoc.
 set -e
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-APP="$ROOT/build/Rücksicht.app"
-SDK="$(xcrun --sdk macosx --show-sdk-path)"
+APP="${BUILD_DIR:-$ROOT/build}/Rücksicht.app"
 
-VERSION="1.0.0"
+VERSION="$(cat "$ROOT/VERSION")"
 BUILD="1"
 BUNDLE_ID="local.ruecksicht.Ruecksicht"
+
+for tool in xcrun clang swift codesign plutil; do
+  command -v "$tool" >/dev/null || {
+    echo "$tool not found -- install the Xcode Command Line Tools" >&2; exit 1
+  }
+done
+SDK="$(xcrun --sdk macosx --show-sdk-path)"
+
+# esbuild is one static binary, embedded in the bundle and run by the daemon. A
+# checkout with the npm toolchain installed has one; a build from a release
+# tarball takes the one on PATH.
+ESBUILD="${ESBUILD:-$ROOT/server/node_modules/@esbuild/darwin-$(uname -m | sed 's/x86_64/x64/')/bin/esbuild}"
+[ -x "$ESBUILD" ] || ESBUILD="$(command -v esbuild || true)"
+[ -x "$ESBUILD" ] || {
+  echo "no esbuild -- brew install esbuild, or npm install in server/" >&2; exit 1
+}
+
+# client.js is generated, not committed: a release tarball carries one, a fresh
+# clone does not, and an app without it loads a page that renders nothing.
+if [ ! -f "$ROOT/server/release/public/client.js" ]; then
+  command -v npm >/dev/null || {
+    echo "no client.js in server/release/public and no npm to build one" >&2; exit 1
+  }
+  [ -d "$ROOT/server/node_modules" ] || (cd "$ROOT/server" && npm install)
+  (cd "$ROOT/server" && npm run build-client)
+fi
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
@@ -36,14 +64,9 @@ clang -fobjc-arc -fmodules -mmacosx-version-min=13.0 -isysroot "$SDK" \
 # daemon resolves the other two relative to its own location -- esbuild is the
 # bundler, and the kernel hosts the CoffeeScript and classic-widget compilers.
 cp "$ROOT/core/.build/release/ubersichtd" "$APP/Contents/MacOS/"
-cp "$ROOT/server/node_modules/@esbuild/darwin-$(uname -m | sed 's/x86_64/x64/')/bin/esbuild" \
-  "$APP/Contents/MacOS/esbuild"
-cp "$ROOT/core/.build/release/UebersichtCore_UebersichtCore.bundle/transform-kernel.js" \
+cp "$ESBUILD" "$APP/Contents/MacOS/esbuild"
+cp "$ROOT/core/Sources/UebersichtCore/Resources/transform-kernel.js" \
   "$APP/Contents/Resources/transform-kernel.js"
-
-# client.js is generated, not committed: a fresh clone has none, and an app
-# without it loads a page that renders nothing at all.
-[ -f "$ROOT/server/release/public/client.js" ] || (cd "$ROOT/server" && npm run build-client)
 
 cp -R "$ROOT/server/public/." "$APP/Contents/Resources/"
 cp "$ROOT"/Uebersicht/*.png "$ROOT"/Uebersicht/*.js "$APP/Contents/Resources/" 2>/dev/null || true

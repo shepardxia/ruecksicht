@@ -149,8 +149,17 @@ public final class Bundler {
         process.standardError = err
         try process.run()
 
+        // Both pipes are drained at once. esbuild writes the bundle to one and
+        // its diagnostics to the other, and reading either to the end while the
+        // other's buffer fills stalls esbuild and this thread against each
+        // other with no timeout between them.
+        let diagnostics = DispatchQueue(label: "ub.bundler.stderr")
+        var failure = ""
+        diagnostics.async {
+            failure = String(decoding: err.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        }
         let source = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        let failure = String(decoding: err.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        diagnostics.sync {}
         process.waitUntilExit()
 
         guard process.terminationStatus == 0 else {

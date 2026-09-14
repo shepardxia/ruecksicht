@@ -68,11 +68,6 @@ module.exports = ClassicWidget = (widgetObject) ->
     init(newImplementation)
     parentEl.appendChild(api.create())
 
-  api.domEl = -> el
-
-  api.isRendered = ->
-    !!el
-
   api.internalApi = ->
     internalApi
 

@@ -8,7 +8,7 @@ import Foundation
 ///
 /// Foundation's Process cannot map a descriptor above 2, so the child is spawned
 /// with posix_spawn and explicit file actions.
-public final class PersistentShell {
+public final class PersistentShell: @unchecked Sendable {
     public enum ShellError: Error {
         case spawnFailed(Int32)
         case died
@@ -36,11 +36,20 @@ public final class PersistentShell {
     private let controlWrite: Int32
     private let stdoutRead: Int32
     private let stderrRead: Int32
-    private let lock = NSLock()
+    private let stateLock = NSLock()
+    /// Held for a whole command. The control channel and the two sentinel
+    /// streams are one conversation: a second command in flight would read the
+    /// first one's output. The HTTP thread serving `run()` and the command loop
+    /// both reach the same shell whenever a widget's ad-hoc command happens to
+    /// match a hoisted one.
+    private let runLock = NSLock()
     private var alive = true
+    private var busy = false
     private var nonceCounter = 0
 
-    public var isAlive: Bool { lock.lock(); defer { lock.unlock() }; return alive }
+    public var isAlive: Bool { stateLock.lock(); defer { stateLock.unlock() }; return alive }
+
+    var isBusy: Bool { stateLock.lock(); defer { stateLock.unlock() }; return busy }
 
     public init(workingDirectory: String, loginShell: Bool = false) throws {
         var control = [Int32](repeating: 0, count: 2)
@@ -59,6 +68,11 @@ public final class PersistentShell {
         posix_spawn_file_actions_addclose(&actions, control[1])
         posix_spawn_file_actions_addclose(&actions, out[0])
         posix_spawn_file_actions_addclose(&actions, err[0])
+        // The child chdirs itself. FileManager's currentDirectoryPath is
+        // process-wide, so setting it around the spawn would race any other
+        // thread spawning a shell. Still the `_np` spelling: the name without
+        // it arrived in macOS 26 and this daemon runs on 13.
+        posix_spawn_file_actions_addchdir_np(&actions, workingDirectory)
 
         var attrs: posix_spawnattr_t?
         posix_spawnattr_init(&attrs)
@@ -71,11 +85,8 @@ public final class PersistentShell {
         argv.append(nil)
         defer { for arg in argv where arg != nil { free(arg) } }
 
-        let previousDirectory = FileManager.default.currentDirectoryPath
-        FileManager.default.changeCurrentDirectoryPath(workingDirectory)
         var spawned: pid_t = 0
         let status = posix_spawn(&spawned, "/bin/bash", &actions, &attrs, argv, environ)
-        FileManager.default.changeCurrentDirectoryPath(previousDirectory)
 
         posix_spawn_file_actions_destroy(&actions)
         posix_spawnattr_destroy(&attrs)
@@ -97,10 +108,10 @@ public final class PersistentShell {
     deinit { terminate() }
 
     public func terminate() {
-        lock.lock()
-        guard alive else { lock.unlock(); return }
+        stateLock.lock()
+        guard alive else { stateLock.unlock(); return }
         alive = false
-        lock.unlock()
+        stateLock.unlock()
 
         close(controlWrite)
         kill(pid, SIGTERM)
@@ -110,14 +121,18 @@ public final class PersistentShell {
         close(stderrRead)
     }
 
-    /// Runs one command and waits for its sentinels. Serialized by the caller:
-    /// one shell serves one command at a time.
+    /// Runs one command and waits for its sentinels.
     public func run(_ command: String) throws -> TickResult {
-        lock.lock()
-        guard alive else { lock.unlock(); throw ShellError.died }
+        runLock.lock()
+        defer { runLock.unlock() }
+
+        stateLock.lock()
+        guard alive else { stateLock.unlock(); throw ShellError.died }
         nonceCounter += 1
+        busy = true
         let nonce = "UB\(pid)x\(nonceCounter)"
-        lock.unlock()
+        stateLock.unlock()
+        defer { stateLock.lock(); busy = false; stateLock.unlock() }
 
         // Leading newline so bash numbers errors from the command text itself.
         let body = command.hasSuffix("\n") ? String(command.dropLast()) : command
@@ -192,10 +207,17 @@ private func fdSet(_ fd: Int32, _ set: inout fd_set) {
 
 /// One shell per distinct command, so identical commands from several screens
 /// share a process and a shell that dies is replaced rather than mourned.
-public final class ShellPool {
+///
+/// Capped, because the key is the command text and widgets reach `run()` with
+/// command strings built from changing data: uncapped, such a widget would
+/// leave behind one bash and three pipes per tick, forever.
+public final class ShellPool: @unchecked Sendable {
+    static let capacity = 32
+
     private let workingDirectory: String
     private let loginShell: Bool
     private var shells: [String: PersistentShell] = [:]
+    private var recent: [String] = []
     private let lock = NSLock()
 
     public init(workingDirectory: String, loginShell: Bool = false) {
@@ -217,27 +239,68 @@ public final class ShellPool {
     }
 
     private func existingOrNew(for command: String) throws -> PersistentShell {
-        lock.lock()
-        if let existing = shells[command], existing.isAlive {
-            lock.unlock()
-            return existing
-        }
-        lock.unlock()
+        if let existing = claim(command) { return existing }
 
         let shell = try PersistentShell(
             workingDirectory: workingDirectory,
             loginShell: loginShell
         )
         lock.lock()
+        // Another thread may have reached the same command while this one was
+        // spawning; the loser's shell is dropped rather than left running.
+        if let existing = shells[command], existing.isAlive {
+            touch(command)
+            lock.unlock()
+            shell.terminate()
+            return existing
+        }
         shells[command] = shell
+        touch(command)
+        let evicted = overflow()
         lock.unlock()
+
+        for stale in evicted { stale.terminate() }
         return shell
+    }
+
+    private func claim(_ command: String) -> PersistentShell? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let existing = shells[command], existing.isAlive else { return nil }
+        touch(command)
+        return existing
     }
 
     private func drop(_ command: String) {
         lock.lock()
         let shell = shells.removeValue(forKey: command)
+        recent.removeAll { $0 == command }
         lock.unlock()
         shell?.terminate()
+    }
+
+    /// Call with the lock held.
+    private func touch(_ command: String) {
+        recent.removeAll { $0 == command }
+        recent.append(command)
+    }
+
+    /// The least recently used shells above the cap, oldest first. A shell with
+    /// a command still running is left alone: closing its pipes would fail a
+    /// tick that is only slow. Call with the lock held.
+    private func overflow() -> [PersistentShell] {
+        var evicted: [PersistentShell] = []
+        var index = 0
+        while shells.count > Self.capacity, index < recent.count {
+            let command = recent[index]
+            guard let shell = shells[command], !shell.isBusy else {
+                index += 1
+                continue
+            }
+            shells.removeValue(forKey: command)
+            recent.remove(at: index)
+            evicted.append(shell)
+        }
+        return evicted
     }
 }

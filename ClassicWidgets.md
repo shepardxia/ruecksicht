@@ -163,6 +163,8 @@ AppleScript support is described in [README.md](README.md).
 
 # Legal
 
-The source for Übersicht is released under the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+The source for Rücksicht is released under the GNU General Public License as
+published by the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-© 2016 Felix Hageloh
+Übersicht © 2016 Felix Hageloh.

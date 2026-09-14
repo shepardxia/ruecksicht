@@ -13,5 +13,6 @@ let package = Package(
             resources: [.copy("Resources/transform-kernel.js")]
         ),
         .executableTarget(name: "ubersichtd", dependencies: ["UebersichtCore"]),
+        .testTarget(name: "UebersichtCoreTests", dependencies: ["UebersichtCore"]),
     ]
 )

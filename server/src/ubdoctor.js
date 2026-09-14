@@ -231,4 +231,3 @@ function scanDirectory(root) {
 }
 
 module.exports = scanDirectory;
-module.exports.scanSource = scanSource;

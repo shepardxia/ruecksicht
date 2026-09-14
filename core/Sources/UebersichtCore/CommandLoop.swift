@@ -50,20 +50,48 @@ public actor CommandLoop {
     }
 
     /// Runs whatever is due and returns only the results worth sending.
-    public func tick(now: TimeInterval) -> [(id: String, result: TickResult)] {
+    ///
+    /// The commands run off the actor and alongside each other. A widget's
+    /// command is a shell process that may take seconds or hang until the
+    /// shell timeout, and in series one such widget would hold back every
+    /// other widget's tick and every page that has just connected.
+    public func tick(now: TimeInterval) async -> [(id: String, result: TickResult)] {
+        let due = scheduler.due(now: now).compactMap { id in
+            schedules[id].map { (id: id, command: $0.command) }
+        }
+        guard !due.isEmpty else { return [] }
+
+        let shells = self.shells
+        let results = await withTaskGroup(of: (String, TickResult).self) { group in
+            for widget in due {
+                group.addTask { (widget.id, await Self.run(widget.command, on: shells)) }
+            }
+            var all: [(String, TickResult)] = []
+            for await result in group { all.append(result) }
+            return all
+        }
+
         var changed: [(id: String, result: TickResult)] = []
-        for id in scheduler.due(now: now) {
-            guard let schedule = schedules[id] else { continue }
-            let result: TickResult
-            do {
-                result = try shells.run(schedule.command)
-            } catch {
-                result = TickResult(stdout: "", stderr: "\(error)", exitCode: -1)
-            }
-            if state.record(widget: id, result: result) {
-                changed.append((id, result))
-            }
+        for (id, result) in results where state.record(widget: id, result: result) {
+            changed.append((id, result))
         }
         return changed
+    }
+
+    /// Off the cooperative pool: a shell command blocks its thread for as long
+    /// as it runs, and enough of them would leave the pool with no thread to
+    /// resume anything on.
+    private nonisolated static func run(_ command: String, on shells: ShellPool) async -> TickResult {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                do {
+                    continuation.resume(returning: try shells.run(command))
+                } catch {
+                    continuation.resume(
+                        returning: TickResult(stdout: "", stderr: "\(error)", exitCode: -1)
+                    )
+                }
+            }
+        }
     }
 }

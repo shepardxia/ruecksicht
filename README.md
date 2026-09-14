@@ -11,18 +11,36 @@ shell commands in persistent shells. No Node runtime ships in the app.
 
 Widgets written for Übersicht run here unmodified.
 
-## Building and installing
-
-Requires the Xcode Command Line Tools (clang, swift, codesign) and Node for the
-build toolchain. Xcode itself is not used: the app has no nibs and no Xcode
-project, and every window and menu is built in code.
+## Installing
 
 ```sh
-cd server && npm install   # supplies the esbuild binary and the bundler
+brew tap shepardxia/ruecksicht https://github.com/shepardxia/ruecksicht
+brew install ruecksicht
+ln -sfn "$(brew --prefix ruecksicht)/Rücksicht.app" /Applications
+brew services start ruecksicht
+```
+
+Homebrew builds from source, so nothing arrives through a browser and nothing is
+quarantined. The app is signed ad-hoc rather than notarized, which is enough
+because it was compiled on the machine it runs on.
+
+## Building it yourself
+
+Requires the Xcode Command Line Tools (clang, swift, codesign) and an `esbuild`
+binary. Xcode itself is not used: the app has no nibs and no Xcode project, and
+every window and menu is built in code.
+
+```sh
+cd server && npm install   # supplies esbuild and the client bundler
 npm run build-client       # server/release/public/client.js is not checked in
 cd .. && ./build-app.sh    # writes build/Rücksicht.app
 ./install.sh               # copies it to /Applications and adds a login item
 ```
+
+A release tarball already carries `client.js`, so building from one needs no
+Node: `brew install esbuild` and `./build-app.sh` is the whole of it. `BUILD_DIR`
+moves the output, `ESBUILD` names the binary to embed, and `CODESIGN_IDENTITY`
+signs with a real certificate instead of ad-hoc.
 
 `./install.sh --replace-uebersicht` additionally removes an installed Übersicht,
 its login item and its preferences. Widgets are never touched.
@@ -33,6 +51,13 @@ this is only needed when its sources change.
 
 `node server/bin/ubdoctor [widget-dir] [--json]` reports on a widget directory --
 what parses, what would break -- without launching the app.
+
+## Cutting a release
+
+`./release.sh` builds `dist/ruecksicht-$(cat VERSION).tar.gz` from the committed
+tree plus the generated `client.js`, and rewrites the formula's `url` and
+`sha256` to match. `--publish` also tags the commit and uploads the tarball to a
+GitHub release.
 
 ## Writing widgets
 

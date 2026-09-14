@@ -325,6 +325,7 @@ int const PORT = 41416;
     [[NSWorkspace sharedWorkspace]openURL:preferences.widgetDir];
 }
 
+// The widget format is Übersicht's, so its gallery is this app's gallery too.
 - (void)visitWidgetGallery:(id)sender
 {
     [[NSWorkspace sharedWorkspace]
