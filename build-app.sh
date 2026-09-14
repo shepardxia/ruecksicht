@@ -77,9 +77,24 @@ printf 'APPL????' > "$APP/Contents/PkgInfo"
 # Inside out, and never --deep: the SwiftPM resource bundle carries no recognized
 # bundle format, and --deep crashes recursing into it rather than skipping it. It
 # holds no code, so being sealed as an ordinary resource of the app is correct.
-codesign --force --sign - "$APP/Contents/MacOS/esbuild"
-codesign --force --sign - "$APP/Contents/MacOS/ubersichtd"
-codesign --force --sign - "$APP"
+#
+# Under the hardened runtime JavaScriptCore cannot allocate executable memory
+# without the entitlement, so the daemon that hosts the transform kernel is
+# signed with it. esbuild is a Go binary and needs only the runtime flag.
+SIGN="${CODESIGN_IDENTITY:--}"
+ENTITLEMENTS="$ROOT/Uebersicht/Ruecksicht.entitlements"
+
+codesign --force --options runtime --sign "$SIGN" "$APP/Contents/MacOS/esbuild"
+codesign --force --options runtime --entitlements "$ENTITLEMENTS" --sign "$SIGN" \
+  "$APP/Contents/MacOS/ubersichtd"
+codesign --force --options runtime --entitlements "$ENTITLEMENTS" --sign "$SIGN" "$APP"
 codesign --verify --strict "$APP"
+
+# A build whose kernel cannot JIT would fail only on the first CoffeeScript or
+# classic widget, long after this script exits.
+codesign -d --entitlements - "$APP" 2>/dev/null \
+  | grep -q 'allow-unsigned-executable-memory' || {
+    echo "the JavaScriptCore entitlement did not make it onto the bundle" >&2; exit 1
+  }
 
 echo "built $APP ($VERSION build $BUILD)"

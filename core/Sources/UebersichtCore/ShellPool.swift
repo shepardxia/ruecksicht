@@ -28,6 +28,10 @@ public final class PersistentShell {
 
     private static let recordSeparator = "\u{1E}"
 
+    /// How long a single command may hold its shell. A command that outlasts
+    /// this has hung, and the shell is dropped rather than waited on.
+    static let timeout: TimeInterval = 30
+
     private let pid: pid_t
     private let controlWrite: Int32
     private let stdoutRead: Int32
@@ -108,7 +112,7 @@ public final class PersistentShell {
 
     /// Runs one command and waits for its sentinels. Serialized by the caller:
     /// one shell serves one command at a time.
-    public func run(_ command: String, timeout: TimeInterval = 30) throws -> TickResult {
+    public func run(_ command: String) throws -> TickResult {
         lock.lock()
         guard alive else { lock.unlock(); throw ShellError.died }
         nonceCounter += 1
@@ -122,7 +126,7 @@ public final class PersistentShell {
             throw ShellError.died
         }
 
-        let deadline = Date().addingTimeInterval(timeout)
+        let deadline = Date().addingTimeInterval(Self.timeout)
         var outBuffer = ""
         var errBuffer = ""
         var exitCode: Int32 = 0
@@ -130,7 +134,7 @@ public final class PersistentShell {
         var sawErr = false
 
         while !sawOut || !sawErr {
-            if Date() > deadline { throw ShellError.timedOut(timeout) }
+            if Date() > deadline { throw ShellError.timedOut(Self.timeout) }
 
             if !sawOut, let chunk = Self.read(stdoutRead, deadline: deadline) {
                 outBuffer += chunk
@@ -199,16 +203,16 @@ public final class ShellPool {
         self.loginShell = loginShell
     }
 
-    public func run(_ command: String, timeout: TimeInterval = 30) throws -> TickResult {
+    public func run(_ command: String) throws -> TickResult {
         let shell = try existingOrNew(for: command)
         do {
-            return try shell.run(command, timeout: timeout)
+            return try shell.run(command)
         } catch {
             drop(command)
             // One relaunch is honest recovery from a shell reaped between
             // ticks; a second would mask a command that kills its own shell.
             let replacement = try existingOrNew(for: command)
-            return try replacement.run(command, timeout: timeout)
+            return try replacement.run(command)
         }
     }
 

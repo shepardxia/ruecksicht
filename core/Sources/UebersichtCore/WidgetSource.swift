@@ -3,9 +3,11 @@ import Foundation
 /// Reads the two things the server needs from a widget's source: what to run
 /// and how often.
 ///
-/// Only a literal string command can be hoisted. A function command closes over
-/// the page -- fetch, WebSocket, geolocation -- so it has to keep running there,
-/// and a widget whose command cannot be read here simply keeps its own timer.
+/// Only a literal string command on a plainly readable interval can be hoisted.
+/// A function command closes over the page -- fetch, WebSocket, geolocation --
+/// so it has to keep running there. Hoisting is an optimization, never a
+/// requirement: anything this cannot read with certainty keeps its own timer on
+/// the page, where the compiled value is the real one.
 public enum WidgetSource {
     public struct Schedule {
         public let command: String
@@ -14,9 +16,10 @@ public enum WidgetSource {
 
     public static func schedule(forSourceAt path: String) -> Schedule? {
         guard let source = try? String(contentsOfFile: path, encoding: .utf8),
-              let command = literalCommand(in: source)
+              let command = literalCommand(in: source),
+              case .every(let interval) = refreshFrequency(in: source)
         else { return nil }
-        return Schedule(command: command, interval: refreshFrequency(in: source) ?? 1.0)
+        return Schedule(command: command, interval: interval)
     }
 
     static func literalCommand(in source: String) -> String? {
@@ -27,14 +30,67 @@ public enum WidgetSource {
         return literal(after: "command", assignedWith: ":", in: source)
     }
 
-    static func refreshFrequency(in source: String) -> TimeInterval? {
-        for marker in ["export const refreshFrequency", "refreshFrequency"] {
-            guard let range = source.range(of: marker) else { continue }
-            let rest = source[range.upperBound...].drop { $0 == " " || $0 == "=" || $0 == ":" }
-            let digits = rest.prefix { $0.isNumber }
-            if let ms = Double(digits), ms > 0 { return ms / 1000 }
+    /// What a widget's `refreshFrequency` says, as far as reading the text can
+    /// tell. `never` is an explicit `false`; `unreadable` covers everything this
+    /// scan cannot evaluate with certainty, which includes any expression
+    /// referring to a name.
+    enum Frequency: Equatable {
+        case every(TimeInterval)
+        case never
+        case unreadable
+    }
+
+    static func refreshFrequency(in source: String) -> Frequency {
+        guard let range = source.range(of: "refreshFrequency") else { return .unreadable }
+
+        let rest = source[range.upperBound...]
+            .drop { $0 == " " || $0 == "=" || $0 == ":" }
+            .prefix { $0 != "," && $0 != "\n" && $0 != ";" && $0 != "}" }
+        let expression = rest.trimmingCharacters(in: .whitespaces)
+
+        if expression == "false" { return .never }
+        if let quoted = duration(inQuoted: expression) { return .every(quoted) }
+        if let milliseconds = arithmetic(expression), milliseconds > 0 {
+            return .every(milliseconds / 1000)
         }
-        return nil
+        return .unreadable
+    }
+
+    /// The `ms` package's shorthand, which a widget may write as `'10s'`.
+    private static func duration(inQuoted expression: String) -> TimeInterval? {
+        let quotes: Set<Character> = ["\"", "'", "`"]
+        guard let first = expression.first, quotes.contains(first),
+              let last = expression.last, last == first, expression.count > 2
+        else { return nil }
+
+        let body = expression.dropFirst().dropLast().trimmingCharacters(in: .whitespaces)
+        let digits = body.prefix { $0.isNumber || $0 == "." }
+        guard let amount = Double(digits), amount > 0 else { return nil }
+
+        switch body.dropFirst(digits.count).trimmingCharacters(in: .whitespaces).lowercased() {
+        case "", "ms", "msec", "msecs", "millisecond", "milliseconds": return amount / 1000
+        case "s", "sec", "secs", "second", "seconds": return amount
+        case "m", "min", "mins", "minute", "minutes": return amount * 60
+        case "h", "hr", "hrs", "hour", "hours": return amount * 3600
+        case "d", "day", "days": return amount * 86400
+        default: return nil
+        }
+    }
+
+    /// Products and sums of numeric literals, so that a widget spelling its
+    /// interval `5 * 60 * 1000` is read as five minutes rather than as five.
+    private static func arithmetic(_ expression: String) -> Double? {
+        var total = 0.0
+        for term in expression.split(separator: "+") {
+            var product = 1.0
+            for factor in term.split(separator: "*") {
+                guard let value = Double(factor.trimmingCharacters(in: .whitespaces))
+                else { return nil }
+                product *= value
+            }
+            total += product
+        }
+        return expression.isEmpty ? nil : total
     }
 
     /// Reads the quoted value following `marker <assignment>`, handling single,

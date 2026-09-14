@@ -23,8 +23,8 @@ NSString * const UBWidgetSectionAnchor = @"widgetSectionAnchor";
         action:@selector(orderFrontStandardAboutPanel:)
         target:NSApp];
 
-    [menu addItem:[NSMenuItem separatorItem]];
-
+    // No separator before this item: UBWidgetsController inserts the widget
+    // section at the anchor, and it opens with one of its own.
     NSMenuItem* widgetDir = [self add:@"Open Widgets Folder"
                                    to:menu
                                action:@selector(openWidgetDir:)

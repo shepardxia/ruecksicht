@@ -4,12 +4,7 @@
     [
       "@babel/preset-env",
       {
-        "targets": [
-          "Explorer 11",
-          "last 5 Safari versions",
-        ],
-        "useBuiltIns": "usage",
-        "corejs": "2",
+        "targets": ["Safari >= 15"],
         "modules": "commonjs"
       }
     ]
