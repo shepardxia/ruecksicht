@@ -2,7 +2,7 @@ class Ruecksicht < Formula
   desc "Desktop widget host that renders JavaScript widgets behind your windows"
   homepage "https://github.com/shepardxia/ruecksicht"
   url "https://github.com/shepardxia/ruecksicht/releases/download/v1.0.0/ruecksicht-1.0.0.tar.gz"
-  sha256 "477a08442f1a6c76f466475f7ebf1ab06bf232a8d7ba672ad3fe4d7cb07349ef"
+  sha256 "a7784bb37696db31e74be44441829006b31828d18d2b789b41c8664444c18664"
   license "GPL-3.0-or-later"
   head "https://github.com/shepardxia/ruecksicht.git", branch: "master"
 
