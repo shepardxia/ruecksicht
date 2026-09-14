@@ -7,10 +7,6 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 APP="$ROOT/build/Rücksicht.app"
 SDK="$(xcrun --sdk macosx --show-sdk-path)"
 
-# The executable's filename stays ASCII deliberately. macOS stores filenames
-# decomposed, and codesign matches CFBundleExecutable against that form, so a
-# precomposed "ü" written here leaves the main binary unrecognized and the
-# bundle unsignable. Users read CFBundleName, never this.
 VERSION="1.0.0"
 BUILD="1"
 BUNDLE_ID="local.ruecksicht.Ruecksicht"
@@ -20,6 +16,10 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
 swift build -c release --package-path "$ROOT/core" --product ubersichtd
 
+# The executable's filename stays ASCII deliberately. macOS stores filenames
+# decomposed, and codesign matches CFBundleExecutable against that form, so a
+# precomposed "ü" written here leaves the main binary unrecognized and the
+# bundle unsignable. Users read CFBundleName, never this.
 clang -fobjc-arc -fmodules -mmacosx-version-min=13.0 -isysroot "$SDK" \
   -I "$ROOT/Uebersicht" -I "$ROOT/Pods/SocketRocket" -I "$ROOT/Pods/SocketRocket/SocketRocket" \
   -framework Cocoa -framework WebKit -framework CoreLocation \
@@ -40,6 +40,10 @@ cp "$ROOT/server/node_modules/@esbuild/darwin-$(uname -m | sed 's/x86_64/x64/')/
 cp "$ROOT/core/.build/release/UebersichtCore_UebersichtCore.bundle/transform-kernel.js" \
   "$APP/Contents/Resources/transform-kernel.js"
 
+# client.js is generated, not committed: a fresh clone has none, and an app
+# without it loads a page that renders nothing at all.
+[ -f "$ROOT/server/release/public/client.js" ] || (cd "$ROOT/server" && npm run build-client)
+
 cp -R "$ROOT/server/public/." "$APP/Contents/Resources/"
 cp "$ROOT"/Uebersicht/*.png "$ROOT"/Uebersicht/*.js "$APP/Contents/Resources/" 2>/dev/null || true
 cp "$ROOT/Uebersicht/Uebersicht.sdef" "$APP/Contents/Resources/Rücksicht.sdef"
@@ -57,7 +61,8 @@ cp "$ROOT/Uebersicht/GettingStarted.jsx" "$APP/Contents/Resources/GettingStarted
 # directory, so their absence only shows up once launched.
 for required in MacOS/ubersichtd MacOS/esbuild Resources/transform-kernel.js \
                 Resources/status-icon.png Resources/Rücksicht.icns \
-                Resources/ruecksicht-logo.png Resources/GettingStarted.jsx; do
+                Resources/ruecksicht-logo.png Resources/GettingStarted.jsx \
+                Resources/client.js Resources/index.html; do
   [ -e "$APP/Contents/$required" ] || {
     echo "$required missing from the bundle" >&2; exit 1
   }
