@@ -79,10 +79,6 @@ public final class HTTPServer {
         listener.start(queue: queue)
     }
 
-    public func stop() {
-        listener.cancel()
-    }
-
     private func receive(on connection: NWConnection, buffer: Data) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
             guard let self else { return }

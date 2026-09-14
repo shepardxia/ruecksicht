@@ -9,7 +9,7 @@ import Foundation
 /// Foundation's Process cannot map a descriptor above 2, so the child is spawned
 /// with posix_spawn and explicit file actions.
 public final class PersistentShell {
-    public enum ShellError: Error, Equatable {
+    public enum ShellError: Error {
         case spawnFailed(Int32)
         case died
         case timedOut(TimeInterval)
@@ -36,7 +36,6 @@ public final class PersistentShell {
     private var alive = true
     private var nonceCounter = 0
 
-    public var processIdentifier: pid_t { pid }
     public var isAlive: Bool { lock.lock(); defer { lock.unlock() }; return alive }
 
     public init(workingDirectory: String, loginShell: Bool = false) throws {
@@ -200,8 +199,6 @@ public final class ShellPool {
         self.loginShell = loginShell
     }
 
-    public var shellCount: Int { lock.lock(); defer { lock.unlock() }; return shells.count }
-
     public func run(_ command: String, timeout: TimeInterval = 30) throws -> TickResult {
         let shell = try existingOrNew(for: command)
         do {
@@ -213,14 +210,6 @@ public final class ShellPool {
             let replacement = try existingOrNew(for: command)
             return try replacement.run(command, timeout: timeout)
         }
-    }
-
-    public func shutdown() {
-        lock.lock()
-        let all = shells.values
-        shells.removeAll()
-        lock.unlock()
-        all.forEach { $0.terminate() }
     }
 
     private func existingOrNew(for command: String) throws -> PersistentShell {

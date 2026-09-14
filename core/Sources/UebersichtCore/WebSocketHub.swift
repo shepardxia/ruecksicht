@@ -19,11 +19,6 @@ public final class WebSocketHub {
 
     public init() {}
 
-    public var clientCount: Int {
-        lock.lock(); defer { lock.unlock() }
-        return clients.count
-    }
-
     /// A client that asked for a subprotocol closes the connection unless the
     /// server names one back, so the first requested protocol is echoed.
     public static func acceptResponse(forKey key: String, protocols: String? = nil) -> Data {

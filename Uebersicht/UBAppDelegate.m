@@ -12,7 +12,6 @@
 
 #import "UBAppDelegate.h"
 #import "UBWebViewController.h"
-#import "UBWindow.h"
 #import "UBPreferencesController.m"
 #import "UBScreensController.h"
 #import "UBWidgetsController.h"
@@ -264,19 +263,6 @@ int const PORT = 41416;
 }
 
 
-- (NSURL*)getPreferencesDir
-{
-    NSArray* urls = [[NSFileManager defaultManager]
-        URLsForDirectory:NSApplicationSupportDirectory
-               inDomains:NSUserDomainMask
-    ];
-    
-    return [urls[0]
-        URLByAppendingPathComponent:[[NSBundle mainBundle] bundleIdentifier]
-                        isDirectory:YES
-    ];
-}
-
 - (NSURL*)serverUrl:(NSString*)protocol
 {
     // trailing slash required for load policy in UBWindow
@@ -327,32 +313,32 @@ int const PORT = 41416;
     [screensController syncScreens];
 }
 
-- (IBAction)showPreferences:(id)sender
+- (void)showPreferences:(id)sender
 {
     [preferences showWindow:nil];
     [NSApp activateIgnoringOtherApps:YES];
     [preferences.window makeKeyAndOrderFront:self];
 }
 
-- (IBAction)openWidgetDir:(id)sender
+- (void)openWidgetDir:(id)sender
 {
     [[NSWorkspace sharedWorkspace]openURL:preferences.widgetDir];
 }
 
-- (IBAction)visitWidgetGallery:(id)sender
+- (void)visitWidgetGallery:(id)sender
 {
     [[NSWorkspace sharedWorkspace]
         openURL:[NSURL URLWithString:@"http://tracesof.net/uebersicht-widgets/"]
     ];
 }
 
-- (IBAction)refreshWidgets:(id)sender
+- (void)refreshWidgets:(id)sender
 {
     needsRefresh = YES;
     [screensController syncScreens];
 }
 
-- (IBAction)showDebugConsole:(id)sender
+- (void)showDebugConsole:(id)sender
 {
     NSNumber* currentScreen = [[NSScreen mainScreen]
         deviceDescription

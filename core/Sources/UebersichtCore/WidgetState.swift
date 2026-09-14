@@ -24,7 +24,6 @@ public struct WidgetState {
 
     /// Returns true when this is a real change. An unchanged triple is dropped
     /// here, before any page is woken to re-render identical output.
-    @discardableResult
     public mutating func record(widget: String, result: TickResult) -> Bool {
         if records[widget] == result { return false }
         records[widget] = result

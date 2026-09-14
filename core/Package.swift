@@ -5,7 +5,6 @@ let package = Package(
     name: "UebersichtCore",
     platforms: [.macOS(.v13)],
     products: [
-        .library(name: "UebersichtCore", targets: ["UebersichtCore"]),
         .executable(name: "ubersichtd", targets: ["ubersichtd"]),
     ],
     targets: [

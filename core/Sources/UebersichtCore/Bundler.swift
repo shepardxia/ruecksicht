@@ -30,8 +30,8 @@ public final class Bundler {
         }
     }
 
-    public init(esbuildPath: String? = nil, cacheDirectory: String) throws {
-        guard let binary = esbuildPath ?? Self.locate() else { throw SetupError.esbuildMissing }
+    public init(cacheDirectory: String) throws {
+        guard let binary = Self.locate() else { throw SetupError.esbuildMissing }
         self.esbuild = binary
         self.cacheDirectory = cacheDirectory
         self.shimPath = (cacheDirectory as NSString).appendingPathComponent("uebersicht-shim.js")

@@ -20,10 +20,10 @@
 - (void)widgetDirDidChange;
 - (void)interactionDidChange;
 - (void)screensChanged:(NSDictionary*)screens;
-- (IBAction)showPreferences:(id)sender;
-- (IBAction)openWidgetDir:(id)sender;
-- (IBAction)showDebugConsole:(id)sender;
-- (IBAction)refreshWidgets:(id)sender;
+- (void)showPreferences:(id)sender;
+- (void)openWidgetDir:(id)sender;
+- (void)showDebugConsole:(id)sender;
+- (void)refreshWidgets:(id)sender;
 - (void)reloadWidget:(NSString*)widgetId;
 - (void)loginShellDidChange;
 

@@ -1,15 +1,22 @@
-# Übersicht
-*Keep an eye on what's happening on your machine and in the world.*
+# Classic widgets
 
-For general info check out the [Übersicht website.](http://tracesof.net/uebersicht)
+The classic widget format: a plain JavaScript or CoffeeScript object rather than
+a module of exports. Rücksicht still compiles it, so widgets written for older
+Übersicht releases keep working. New widgets are better written in the `.jsx`
+format described in [README.md](README.md).
 
 ## Writing Widgets
 
-In essence, widgets are plain JavaScript objects that define a few key properties and methods. They need to be defined in a single file with a `.js` or `.coffee` extension for Übersicht to pick them up. Übersicht will listen to file changes inside your widget directory, so you can edit widgets and see the result live.
+A classic widget is a single `.js` or `.coffee` file directly inside a
+`<name>.widget` directory under `~/Library/Application Support/Rücksicht/widgets`.
+Subdirectories are not scanned, so shared code and node modules belong in one
+(`lib/`, `src/`, `node_modules/`) and are reached with [NodeJS' module
+syntax](https://www.sitepoint.com/understanding-module-exports-exports-node-js/).
+File changes are picked up live.
 
-You can also include node modules and split your widget into separate files using [NodeJS' module syntax](https://www.sitepoint.com/understanding-module-exports-exports-node-js/). Any file that is in a directory called `/node_modules`, `/lib` or `/src` will be treated as a module and will not show up as a separate widget.
-
-Currently they are best written in [CoffeeScript](http://coffeescript.org). Plain JS widgets work as well, but it currently doesn't have CommonJS support. This documentation will use the CoffeScript syntax, but here is a small example widget [in pure JavaScript](https://gist.github.com/felixhageloh/34645a899a0f22f583bb). As an alternative, you could use CoffeScript's back-tick <tt>`</tt> operator to only write the relevant parts in JavaScript.
+This documentation uses [CoffeeScript](http://coffeescript.org) syntax. Plain JS
+widgets work as well, but have no CommonJS support; CoffeeScript's back-tick
+<tt>`</tt> operator lets you write the relevant parts in JavaScript.
 
 The following properties and methods are currently supported:
 
@@ -139,31 +146,7 @@ Runs a shell command and calls callback with the result. Command is a string con
 
 ## Geolocation API
 
-While the WebView used by Übersicht seems to provide the standard HTML5 geolocation API, it is not functional and there seems to be no way to enable it. Übersicht now provides a custom implementation, which tries to follow the standard implementation as closely as possible. However, so far it provides only the basics and might still be somewehat unstable. The api can be found under `window.geolocation` (instead of `window.navigator.geolocation`). And supports the following methods
-
-```coffeescript
-geolocation.getCurrentPosition(callback)
-```
-
-```coffeescript
-geolocation.watchPosition(callback)
-```
-
-```coffeescript
-geolocation.clearWatch(watchId)
-```
-
-Check the [documentation](https://developer.mozilla.org/en-US/docs/Web/API/Geolocation) for details on how to use these methods. The main difference to the standard API is that none of them accept options (the accuracy for position data is always set to the highest) and error reporting has not be implemented yet.
-
-However, in a adition to the standard `Position` object provided by the standard API, Übersicht provides an extra `address` property with the following fields:
-
-  - Street
-  - City
-  - ZIP
-  - Country
-  - State
-  - CountryCode
-
+The same as for `.jsx` widgets; see [README.md](README.md).
 
 ## Hosted Functionality
 
@@ -174,92 +157,9 @@ A global object called `uebersicht` exists which exposes extra functionality tha
 
 Has been deprecated as of version 0.8 in favor of -webkit-backdrop-filter. It should be available on all systems that have Safari 9+ installed. https://developer.mozilla.org/en-US/docs/Web/CSS/backdrop-filter
 
-## Built In Proxy Server
-
-If you like you make Ajax requests to an external site without using a command, you can make use of the built in proxy server. It is running on `http://127.0.0.1:41417` and can be used as follows:
-
-    command: (callback) ->
-      proxy = "http://127.0.0.1:41417/"
-      server = "http://example.com:8080"
-      path = "/getsomejson"
-      $.get proxy + server + path, (json) ->
-        callback null, json
-
 ## Scripting Support
 
-Übersicht has AppleScript support since version 1.1.45. To get detailed information on what you can script, open the Script Editor and add Übersicht to the Library (use Window -> Library to show). Here are a few examples of what you can do with AppleScript:
-
-    tell application "Übersicht" to refresh
-
-refreshes all widgets.
-
-    tell application "Übersicht" to refresh widget id "my-widget"
-
-refreshes widget with id "my-widget".
-
-    tell application "Übersicht" to every widget
-
-lists all widgets.
-
-    tell application "Übersicht" to set hidden of widget id "top-cpu-coffee" to false
-
-hides the widget with ID "top-cpu-coffee"
-
-### Typing the umlaut 'Ü'
-
-Unfortunately OS X seems to use a different UTF-8 code point for the Ü in its file system than you get by typing it normally (or by copy pasting it from here). There are three ways you can get the correct character:
-
-- use the Script Editor of OS X and add Übersicht to its library. Once you initiate a new script via the Editor it will contain the correct name of the app.
-- while Übersicht is running, list the process using `ps ax | grep sicht` and copy paste the name from there
-- rename the app to whatever you like ('Uebersicht' would be the correct spelling without using the umlaut)
-
-## Building Übersicht
-
-To build Übersicht you will need to have NodeJS and a few dependencies installed:
-
-### setup
-
-Install node and npm using homebrew
-
-    brew install node
-
-then run
-
-    npm install
-
-### git and unicode characters
-
-Git might not like the umlaut (ü) in some of the path names and will constantly show them as untracked files. To get rid of this issue, I had to use
-
-    git config core.precomposeunicode false
-
-However, the common advice is to set this to `true`. It might depend on the OS and git version which one to use.
-
-### building
-
-The code base consists of two parts, a cocoa app and a NodeJS app inside `server/`. To build the node app seperately, use `npm run release`. This happens automatically every time you build using XCode.
-
-The node app can be run standalone using
-
-```coffeescript
-coffee server/server.coffee -d <path/to/widget/dir> -p <port>
-```
-
-# Building in Xcode
-
-The first time opening the project in Xcode you might see this message when trying to build: "The run destination My Mac is not valid for Running the scheme 'Übersicht'."
-
-Click on `Uebersicht` in the project navigator and then select the menu `Editor > Validate Settings...` and click `Perform Changes`.
-
-You can then attempt to build, you may then be presented with code sign issues, click `Fix Issue` to continue.
-
-Now you need to remove the code signing shell script, select the `Übersicht` target and under `Build Phases` remove the code in the `Code Sign Frameworks` section.
-
-You should now be able to build successfully.
-
-There is one last step on the Node.js side to complete. For the sake of brevity, this link will solve your problem:
-
-http://stackoverflow.com/questions/31254725/transport-security-has-blocked-a-cleartext-http
+AppleScript support is described in [README.md](README.md).
 
 # Legal
 

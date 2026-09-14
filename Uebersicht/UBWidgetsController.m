@@ -220,11 +220,6 @@ static NSInteger const WIDGET_MENU_ITEM_TAG = 42;
     [menu insertItem:item atIndex:0];
 }
 
-- (void)removeWidget:(NSString*)widgetId FromMenu:(NSMenu*)menu
-{
-    [menu removeItem:[menu itemWithTitle:widgetId]];
-}
-
 - (void)addScreens:(NSDictionary*)screens
       toWidgetMenu:(NSMenu*)menu
       forWidget:(NSString*)widgetId
@@ -306,16 +301,6 @@ static NSInteger const WIDGET_MENU_ITEM_TAG = 42;
     
     [dispatcher
         dispatch: @"WIDGET_SET_TO_ALL_SCREENS"
-        withPayload: widgetId
-    ];
-}
-
-- (void)showOnSelectedScreens:(id)sender
-{
-    NSString* widgetId = [(NSMenuItem*)sender representedObject];
-    
-    [dispatcher
-        dispatch: @"WIDGET_SET_TO_SELECTED_SCREENS"
         withPayload: widgetId
     ];
 }

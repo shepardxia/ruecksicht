@@ -1,25 +1,10 @@
-
-!default.mode1v3
-!default.mode2v3
-!default.pbxuser
-!default.perspectivev3
-!default.xcworkspace
 .DS_Store
 .idea/
-*.mode1v3
-*.mode2v3
-*.moved-aside
-*.pbxuser
-*.perspectivev3
-*.xcworkspace
+
+# build-app.sh writes the app bundle here
 /build/
-# build files
-# Xcode
-build/
-DerivedData
-profile
+
 server/node_modules
 server/release/node_modules
 server/release/public/client.js
 server/release/server.js
-xcuserdata

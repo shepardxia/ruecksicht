@@ -157,17 +157,6 @@
         forMainFrameOnly: YES
     ]];
     
-    // hack to make old widgets relying on process.argv[0] work
-    NSString* processArgvHack = [NSString
-        stringWithFormat:@"process = {argv: ['%@'.replace(/ /g, '\\\\ ')]}",
-        [[NSBundle mainBundle] pathForResource:@"localnode" ofType:nil]
-    ];
-    [ucController addUserScript:[[WKUserScript alloc]
-        initWithSource: processArgvHack
-        injectionTime: WKUserScriptInjectionTimeAtDocumentStart
-        forMainFrameOnly: YES
-    ]];
-    
     [ucController
         addScriptMessageHandler: [[UBWidgetInteraction alloc] init]
         name: @"uebersicht"

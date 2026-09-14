@@ -5,7 +5,7 @@ import Foundation
 /// Deadlines are quantized onto a shared grid, so widgets registered at
 /// different moments converge on the same wake instants instead of drifting
 /// apart: one timer is not one wake unless the deadlines line up.
-struct ScheduleEntry: Equatable {
+struct ScheduleEntry {
     let id: String
     var interval: TimeInterval
     var deadline: TimeInterval

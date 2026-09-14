@@ -2,10 +2,10 @@
 
 // Compiles a widget's source to the JavaScript a bundler can consume.
 //
-// The single definition of what each widget language means, shared by the
-// esbuild plugins in bundleWidget.js and by the JavaScriptCore kernel the Swift
-// daemon evaluates. Two copies would let one bundler learn a new CoffeeScript
-// option or a different classic wrapper while the other kept the old contract.
+// The single definition of what each widget language means. It reaches the
+// daemon only as the JavaScriptCore kernel bundled by `npm run build-kernel`,
+// so nothing here may touch a filesystem, a process or a module loader at call
+// time.
 
 const coffee = require('coffee-script/lib/coffee-script/coffee-script.js');
 const widgetify = require('./widgetify');
