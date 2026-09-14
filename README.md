@@ -4,7 +4,7 @@
 
 Rücksicht is a macOS desktop widget host: small JavaScript modules rendered by
 WebKit and pinned to the desktop, behind your windows. It is a fork of
-[Übersicht](http://tracesof.net/uebersicht) by Felix Hageloh, with the bundled
+[Übersicht](https://github.com/felixhageloh/uebersicht) by Felix Hageloh, with the bundled
 Node server replaced by a Swift daemon (`ubersichtd`) that serves the widget
 pages, bundles widgets with [esbuild](https://esbuild.github.io) and runs their
 shell commands in persistent shells. No Node runtime ships in the app.
@@ -14,7 +14,7 @@ Widgets written for Übersicht run here unmodified.
 ## Installing
 
 ```sh
-brew tap shepardxia/ruecksicht
+brew tap shepardxia/ruecksicht https://github.com/shepardxia/ruecksicht
 brew install ruecksicht
 ln -sfn "$(brew --prefix ruecksicht)/Rücksicht.app" /Applications
 brew services start ruecksicht
@@ -56,10 +56,8 @@ what parses, what would break -- without launching the app.
 
 `./release.sh` builds `dist/ruecksicht-$(cat VERSION).tar.gz` from the committed
 tree plus the generated `client.js`, and rewrites the formula's `url` and
-`sha256` to match. `--publish` also tags the commit, uploads the tarball to a
-GitHub release, and copies the formula into the
-[tap](https://github.com/shepardxia/homebrew-ruecksicht), which carries the
-formula and nothing else so that tapping it stays small.
+`sha256` to match. `--publish` also tags the commit and uploads the tarball to a
+GitHub release.
 
 ## Writing widgets
 
@@ -139,4 +137,4 @@ The source for Rücksicht is released under the GNU General Public License as
 published by the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-Übersicht © 2019 Felix Hageloh.
+Übersicht © 2019 [Felix Hageloh](https://github.com/felixhageloh/uebersicht).
