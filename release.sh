@@ -52,5 +52,13 @@ if [ "$1" = "--publish" ]; then
     gh release create "v$VERSION" "$TARBALL" \
         --repo "$REPO" \
         --title "Rücksicht $VERSION" \
-        --notes "Build from source: see the README. Homebrew: brew tap $REPO https://github.com/$REPO && brew install ruecksicht"
+        --notes "Build from source: see the README. Homebrew: brew tap ${REPO%%/*}/ruecksicht && brew install ruecksicht"
+
+    # The tap repository holds nothing but the formula, so tapping it does not
+    # clone this repository's history for the sake of one file.
+    TAP="$DIST/tap"
+    git clone -q "https://github.com/${REPO%%/*}/homebrew-ruecksicht.git" "$TAP"
+    cp "$ROOT/Formula/ruecksicht.rb" "$TAP/Formula/ruecksicht.rb"
+    git -C "$TAP" commit -qam "Rücksicht $VERSION"
+    git -C "$TAP" push -q origin main
 fi

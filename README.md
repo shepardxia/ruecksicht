@@ -14,7 +14,7 @@ Widgets written for Übersicht run here unmodified.
 ## Installing
 
 ```sh
-brew tap shepardxia/ruecksicht https://github.com/shepardxia/ruecksicht
+brew tap shepardxia/ruecksicht
 brew install ruecksicht
 ln -sfn "$(brew --prefix ruecksicht)/Rücksicht.app" /Applications
 brew services start ruecksicht
@@ -56,8 +56,10 @@ what parses, what would break -- without launching the app.
 
 `./release.sh` builds `dist/ruecksicht-$(cat VERSION).tar.gz` from the committed
 tree plus the generated `client.js`, and rewrites the formula's `url` and
-`sha256` to match. `--publish` also tags the commit and uploads the tarball to a
-GitHub release.
+`sha256` to match. `--publish` also tags the commit, uploads the tarball to a
+GitHub release, and copies the formula into the
+[tap](https://github.com/shepardxia/homebrew-ruecksicht), which carries the
+formula and nothing else so that tapping it stays small.
 
 ## Writing widgets
 
