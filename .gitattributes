@@ -1,0 +1,5 @@
+# The formula is tap metadata, not source. Keeping it out of the archive is
+# what makes a release tarball's checksum independent of the formula that
+# carries the checksum.
+Formula export-ignore
+.gitattributes export-ignore
