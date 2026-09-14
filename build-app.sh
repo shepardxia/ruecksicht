@@ -42,7 +42,10 @@ fi
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
-swift build -c release --package-path "$ROOT/core" --product ubersichtd
+# --disable-sandbox: SwiftPM sandboxes its own manifest compile, and that
+# sandbox cannot nest inside another one. Under a build that is already
+# sandboxed -- Homebrew's, for one -- the manifest fails to compile at all.
+swift build -c release --disable-sandbox --package-path "$ROOT/core" --product ubersichtd
 
 # Every filename inside the bundle stays ASCII deliberately. macOS stores
 # filenames decomposed while this script writes them precomposed, and the
