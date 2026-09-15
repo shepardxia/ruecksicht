@@ -1,7 +1,7 @@
 import Foundation
 
 /// Runs widget commands on the server, once per widget however many screens
-/// show it, and reports only the ticks whose output actually changed.
+/// show it.
 ///
 /// Everything the loop mutates lives here rather than in globals the timer and
 /// the file watcher would race over.
@@ -49,7 +49,12 @@ public actor CommandLoop {
         }
     }
 
-    /// Runs whatever is due and returns only the results worth sending.
+    /// Runs whatever is due.
+    ///
+    /// Every tick is reported, including one whose output repeats the last.
+    /// A widget's `updateState` is its clock as much as its parser -- a widget
+    /// that animates from command output stops moving the moment an identical
+    /// result is swallowed.
     ///
     /// The commands run off the actor and alongside each other. A widget's
     /// command is a shell process that may take seconds or hang until the
@@ -71,11 +76,10 @@ public actor CommandLoop {
             return all
         }
 
-        var changed: [(id: String, result: TickResult)] = []
-        for (id, result) in results where state.record(widget: id, result: result) {
-            changed.append((id, result))
+        for (id, result) in results {
+            state.record(widget: id, result: result)
         }
-        return changed
+        return results.map { (id: $0.0, result: $0.1) }
     }
 
     /// Off the cooperative pool: a shell command blocks its thread for as long

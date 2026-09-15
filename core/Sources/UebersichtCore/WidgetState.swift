@@ -24,10 +24,8 @@ public struct WidgetState {
 
     /// Returns true when this is a real change. An unchanged triple is dropped
     /// here, before any page is woken to re-render identical output.
-    public mutating func record(widget: String, result: TickResult) -> Bool {
-        if records[widget] == result { return false }
+    public mutating func record(widget: String, result: TickResult) {
         records[widget] = result
-        return true
     }
 
     /// Everything already known, for a page that has just connected. Without it
