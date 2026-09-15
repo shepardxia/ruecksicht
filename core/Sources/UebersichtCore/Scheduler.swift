@@ -27,11 +27,14 @@ public struct Scheduler {
 
     public init() {}
 
+    /// Due at once, then every `interval`. A widget's first reading is the one
+    /// on screen while the user is looking at it, and waiting a whole interval
+    /// to take it leaves an hourly widget showing its placeholder for an hour.
     public mutating func add(id: String, interval: TimeInterval, now: TimeInterval) {
         entries[id] = ScheduleEntry(
             id: id,
             interval: interval,
-            deadline: Grid.quantize(now + interval)
+            deadline: Grid.quantize(now)
         )
     }
 
