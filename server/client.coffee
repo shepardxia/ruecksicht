@@ -33,7 +33,9 @@ window.onload = ->
     store = redux.createStore(reducer, initialState)
     Object.keys(initialState.widgets).forEach (id) ->
       fetchWidget(id)
-        .then (widgetImpl) -> store.dispatch(actions.showWidget(id, widgetImpl))
+        .then (widgetImpl) ->
+          store.dispatch(actions.showWidget(id, widgetImpl))
+          replayOutput(id)
 
     prevState = null
     store.subscribe ->
@@ -46,6 +48,7 @@ window.onload = ->
       if action.type == 'WIDGET_WANTS_REFRESH'
         render.rendered[action.payload]?.instance?.forceRefresh()
       else if action.type == 'WIDGET_COMMAND_RAN'
+        latestOutput[action.payload.id] = action.payload
         render.rendered[action.payload.id]?.instance?.receive(action.payload)
       else if action.type == 'WIDGET_ADDED'
         store.dispatch(action)
@@ -53,6 +56,7 @@ window.onload = ->
         fetchWidget(action.payload.id)
           .then (widgetImpl) ->
             store.dispatch(actions.showWidget(action.payload.id, widgetImpl))
+            replayOutput(action.payload.id)
       else if action.type == 'MASTER_STYLE_CHANGED'
         reloadUserCSS()
       else
@@ -68,6 +72,16 @@ window.uebersicht =
 
 window.addEventListener 'contextmenu', (e) ->
   e.preventDefault()
+
+# The server sends what it already knows the moment the socket opens, which is
+# before any widget has been fetched. Without somewhere to put that first
+# result, a server-driven widget shows its placeholder until the next tick --
+# a full hour for an hourly one.
+latestOutput = {}
+
+replayOutput = (id) ->
+  payload = latestOutput[id]
+  render.rendered[id]?.instance?.receive(payload) if payload
 
 getState = (callback) ->
   $.get("/state/")
