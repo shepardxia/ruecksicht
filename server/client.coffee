@@ -71,8 +71,12 @@ window.addEventListener 'contextmenu', (e) ->
 
 getState = (callback) ->
   $.get("/state/")
-    .done((response) -> callback null, JSON.parse(response))
-    .fail -> callback response, null
+    .done((response) ->
+      # jQuery parses the body itself when the response is served as JSON, and
+      # hands back a string only when it is not.
+      state = if typeof response is 'string' then JSON.parse(response) else response
+      callback(null, state))
+    .fail((err) -> callback(err, null))
 
 fetchWidget = (id) -> new Promise (resolve, reject) ->
   scriptTag = document.createElement('SCRIPT')
