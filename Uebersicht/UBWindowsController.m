@@ -29,37 +29,21 @@
 }
 
 
+// Windows are rebuilt, not resized: after a display change a WKWebView left
+// in place keeps its page alive but stops painting, and no reload revives it.
 - (void)updateWindows:(NSDictionary*)screens
               baseUrl:(NSURL*)baseUrl
    interactionEnabled:(Boolean)interactionEnabled
-         forceRefresh:(Boolean)forceRefresh
 {
-    NSMutableArray* obsoleteScreens = [[windows allKeys] mutableCopy];
-    UBWindowGroup* windowGroup;
-    
+    [self closeAll];
     for(NSNumber* screenId in screens) {
-        if (![windows objectForKey:screenId]) {
-            windowGroup = [[UBWindowGroup alloc]
-                initWithInteractionEnabled: interactionEnabled
-            ];
-            [windows setObject:windowGroup forKey:screenId];
-            [windowGroup loadUrl: [self screenUrl:screenId baseUrl:baseUrl]];
-        } else {
-            windowGroup = windows[screenId];
-            if (forceRefresh) {
-                [windowGroup reload];
-            }
-        }
-        
+        UBWindowGroup* windowGroup = [[UBWindowGroup alloc]
+            initWithInteractionEnabled: interactionEnabled
+        ];
+        windows[screenId] = windowGroup;
         [windowGroup setFrame:[self screenRect:screenId] display:YES];
-        [obsoleteScreens removeObject:screenId];
+        [windowGroup loadUrl: [self screenUrl:screenId baseUrl:baseUrl]];
     }
-    
-    for (NSNumber* screenId in obsoleteScreens) {
-        [windows[screenId] close];
-        [windows removeObjectForKey:screenId];
-    }
-    
     NSLog(@"using %lu screens", (unsigned long)[windows count]);
 }
 
@@ -94,14 +78,6 @@
     };
     
     return nil;
-}
-
-- (void)reloadAll
-{
-    for (NSNumber* screenId in windows) {
-        UBWindowGroup* window = windows[screenId];
-        [window reload];
-    }
 }
 
 - (void)closeAll

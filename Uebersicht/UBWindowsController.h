@@ -15,10 +15,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)updateWindows:(NSDictionary*)screens
               baseUrl:(NSURL*)baseUrl
-   interactionEnabled:(Boolean)interactionEnabled
-         forceRefresh:(Boolean)forceRefresh;
+   interactionEnabled:(Boolean)interactionEnabled;
 
-- (void)reloadAll;
 - (void)closeAll;
 - (void)workspaceChanged;
 - (void)wallpaperChanged;

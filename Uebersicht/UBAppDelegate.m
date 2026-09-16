@@ -34,12 +34,10 @@ int const PORT = 41416;
     int port;
     UBWidgetsStore* widgetsStore;
     UBWidgetsController* widgetsController;
-    BOOL needsRefresh;
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification
 {
-    needsRefresh = YES;
     statusBarMenu = [UBMenu statusBarMenuWithTarget:self];
     statusBarItem = [self addStatusItemToMenu: statusBarMenu];
     preferences = [[UBPreferencesController alloc] init];
@@ -276,9 +274,7 @@ int const PORT = 41416;
             updateWindows:screens
             baseUrl: [self serverUrl: @"http"]
             interactionEnabled: preferences.enableInteraction
-            forceRefresh: needsRefresh
         ];
-        needsRefresh = NO;
     }
 }
 
@@ -299,8 +295,6 @@ int const PORT = 41416;
 
 - (void)interactionDidChange
 {
-    [windowsController closeAll];
-    needsRefresh = YES;
     [screensController syncScreens];
 }
 
@@ -326,7 +320,6 @@ int const PORT = 41416;
 
 - (void)refreshWidgets:(id)sender
 {
-    needsRefresh = YES;
     [screensController syncScreens];
 }
 
@@ -347,7 +340,7 @@ int const PORT = 41416;
 
 - (void)wakeFromSleep:(NSNotification *)notification
 {
-    [windowsController reloadAll];
+    [screensController syncScreens];
 }
 
 - (void)workspaceChanged:(NSNotification *)notification
