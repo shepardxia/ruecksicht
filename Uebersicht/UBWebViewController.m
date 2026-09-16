@@ -196,6 +196,15 @@
     NSLog(@"loaded %@", webView.URL);
 }
 
+// WebKit drops a page's content process on display and GPU changes, among
+// other things, and a dropped process leaves a blank window until the page is
+// loaded again.
+- (void)webViewWebContentProcessDidTerminate:(WKWebView *)webView
+{
+    NSLog(@"content process for %@ terminated, reloading", url);
+    [webView loadRequest:[NSURLRequest requestWithURL:url]];
+}
+
 - (void)webView:(WKWebView *)sender
     didFailNavigation:(WKNavigation*)nav
     withError:(NSError *)error
