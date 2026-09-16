@@ -14,9 +14,6 @@ public final class WebSocketHub {
     private let lock = NSLock()
     private let queue = DispatchQueue(label: "ub.ws")
 
-    /// Called when a page joins, so the server can bring it up to date.
-    public var onConnect: ((NWConnection) -> Void)?
-
     public init() {}
 
     /// A client that asked for a subprotocol closes the connection unless the
@@ -47,12 +44,6 @@ public final class WebSocketHub {
         clients[id] = connection
         lock.unlock()
         receive(on: connection, buffer: Data())
-    }
-
-    /// Called once the handshake response is on the wire. Anything sent before
-    /// that arrives where the client is still expecting HTTP.
-    public func ready(_ connection: NWConnection) {
-        onConnect?(connection)
     }
 
     public func send(_ text: String, to connection: NWConnection) {

@@ -16,7 +16,6 @@ window.__ubWidgets = {}
 
 
 window.onload = ->
-  sharedSocket.open("ws://#{window.location.host}")
   path = window.location.pathname.split('/')
   screen =
     id: Number(path[1])
@@ -61,6 +60,7 @@ window.onload = ->
         reloadUserCSS()
       else
         store.dispatch(action)
+    sharedSocket.open("ws://#{window.location.host}")
     render(initialState, screen, contentEl, store.dispatch)
 
 # legacy
@@ -73,10 +73,8 @@ window.uebersicht =
 window.addEventListener 'contextmenu', (e) ->
   e.preventDefault()
 
-# The server sends what it already knows the moment the socket opens, which is
-# before any widget has been fetched. Without somewhere to put that first
-# result, a server-driven widget shows its placeholder until the next tick --
-# a full hour for an hourly one.
+# The server sends what it already knows the moment the socket opens, before
+# any widget bundle has loaded; the result waits here for the widget.
 latestOutput = {}
 
 replayOutput = (id) ->

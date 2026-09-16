@@ -49,9 +49,6 @@ its login item and its preferences. Widgets are never touched.
 which hosts the CoffeeScript and classic-widget compilers. It is checked in, so
 this is only needed when its sources change.
 
-`node server/bin/ubdoctor [widget-dir] [--json]` reports on a widget directory --
-what parses, what would break -- without launching the app.
-
 ## Cutting a release
 
 `./release.sh` builds `dist/ruecksicht-$(cat VERSION).tar.gz` from the committed
@@ -75,7 +72,9 @@ is always registered; `<name>.widget` folders in it work the way Übersicht's
 did, with commands running from the folder. Registered paths are one per line
 in `~/Library/Application Support/Rücksicht/sources`; the app watches it.
 
-## Writing widgets Subdirectories are not
+## Writing widgets
+
+Subdirectories are not
 scanned, so shared code and dependencies belong in one (`lib/`, `src/`,
 `node_modules/`) and are reached by import. A `.disabled` suffix keeps a file
 from loading. Edits are applied live, and widget state survives a reload, so you

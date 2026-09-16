@@ -40,13 +40,6 @@
             [self notifyChange];
         }];
         
-        [listener on:@"WIDGET_SETTINGS_CHANGED" do:^(NSDictionary* details) {
-            self->settings[details[@"id"]] = [[NSMutableDictionary alloc]
-                initWithDictionary:details[@"settings"]
-            ];
-            [self notifyChange];
-        }];
-        
         [listener on:@"WIDGET_REMOVED" do:^(NSString* widgetId) {
             if (self->widgets[widgetId]) {
                 [self removeWidget:widgetId];

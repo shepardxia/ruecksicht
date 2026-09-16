@@ -10,12 +10,14 @@ public struct Widget: Sendable {
     public let name: String
     /// Where the widget's command runs.
     public let workingDirectory: String
+    /// A literal command on a readable interval, which the daemon runs itself.
+    public let schedule: WidgetSource.Schedule?
 
     public var isCoffee: Bool { path.hasSuffix(".coffee") }
 }
 
-/// Where widgets come from: the directories listed in the registry, one per
-/// line, and the default widgets folder before them.
+/// Where widgets come from: the default widgets folder, then the directories
+/// listed in the registry, one absolute path per line.
 ///
 /// A source that holds `*.widget` subdirectories is a folder of widgets, each
 /// served under its own subdirectory's name and run from the folder, so
@@ -29,69 +31,52 @@ public enum Sources {
 
     public static func read(registry: String, defaultDirectory: String) -> [String] {
         var sources = [defaultDirectory]
-        if let text = try? String(contentsOfFile: registry, encoding: .utf8) {
-            for line in text.split(separator: "\n") {
-                let path = line.trimmingCharacters(in: .whitespaces)
-                guard !path.isEmpty, !path.hasPrefix("#"), !sources.contains(path) else { continue }
-                sources.append((path as NSString).expandingTildeInPath)
-            }
+        let text = (try? String(contentsOfFile: registry, encoding: .utf8)) ?? ""
+        for line in text.split(separator: "\n").map(String.init) where !sources.contains(line) {
+            sources.append(line)
         }
         return sources
     }
 
     public static func slug(_ relativePath: String) -> String {
-        let collapsed = relativePath.map { character -> Character in
-            character.isLetter || character.isNumber ? character : "-"
-        }
-        return String(collapsed)
+        String(relativePath.map { $0.isLetter || $0.isNumber ? $0 : "-" })
             .split(separator: "-", omittingEmptySubsequences: true)
             .joined(separator: "-")
     }
 
     public static func scan(_ sources: [String]) -> [Widget] {
-        var found: [Widget] = []
-        for source in sources {
-            let bundles = subdirectories(of: source).filter { $0.hasSuffix(".widget") }
-            if bundles.isEmpty {
-                found += widgets(in: source, name: (source as NSString).lastPathComponent, workingDirectory: source)
-            } else {
-                for bundle in bundles {
-                    let directory = (source as NSString).appendingPathComponent(bundle)
-                    found += widgets(in: directory, name: bundle, workingDirectory: source)
-                }
-            }
-        }
-        return found.sorted { $0.id < $1.id }
+        sources.flatMap(widgetDirectories).flatMap(widgets).sorted { $0.id < $1.id }
     }
 
-    private static func subdirectories(of path: String) -> [String] {
+    private static func widgetDirectories(in source: String) -> [(directory: String, workingDirectory: String)] {
         let fm = FileManager.default
-        guard let entries = try? fm.contentsOfDirectory(atPath: path) else { return [] }
-        return entries.filter { entry in
+        let bundles = ((try? fm.contentsOfDirectory(atPath: source)) ?? []).filter { entry in
             var isDirectory: ObjCBool = false
-            return fm.fileExists(atPath: (path as NSString).appendingPathComponent(entry), isDirectory: &isDirectory)
+            return entry.hasSuffix(".widget")
+                && fm.fileExists(atPath: (source as NSString).appendingPathComponent(entry), isDirectory: &isDirectory)
                 && isDirectory.boolValue
         }
+        if bundles.isEmpty { return [(source, source)] }
+        return bundles.map { ((source as NSString).appendingPathComponent($0), source) }
     }
 
-    private static func widgets(in directory: String, name: String, workingDirectory: String) -> [Widget] {
+    private static func widgets(in directory: String, workingDirectory: String) -> [Widget] {
         let fm = FileManager.default
-        guard let files = try? fm.contentsOfDirectory(atPath: directory) else { return [] }
-        var found: [Widget] = []
-        for file in files {
-            let ext = (file as NSString).pathExtension
-            guard sourceExtensions.contains(ext), !file.hasSuffix(".disabled") else { continue }
+        let name = (directory as NSString).lastPathComponent
+        return ((try? fm.contentsOfDirectory(atPath: directory)) ?? []).compactMap { file in
+            guard sourceExtensions.contains((file as NSString).pathExtension), !file.hasSuffix(".disabled")
+            else { return nil }
             let full = (directory as NSString).appendingPathComponent(file)
             let attributes = try? fm.attributesOfItem(atPath: full)
-            found.append(Widget(
+            return Widget(
                 id: slug("\(name)/\(file)"),
                 path: full,
                 modified: (attributes?[.modificationDate] as? Date) ?? Date(timeIntervalSince1970: 0),
                 directory: directory,
                 name: name,
-                workingDirectory: workingDirectory
-            ))
+                workingDirectory: workingDirectory,
+                schedule: WidgetSource.schedule(forSourceAt: full)
+            )
         }
-        return found
     }
 }

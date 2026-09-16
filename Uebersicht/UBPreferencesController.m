@@ -11,6 +11,7 @@
 //  details.
 
 #import "UBPreferencesController.h"
+#import "UBAppDelegate.h"
 
 // One label column of uniform width, one control column; hints sit under their
 // control, indented to the checkbox title.

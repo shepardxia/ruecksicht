@@ -12,7 +12,7 @@
 
 #import "UBAppDelegate.h"
 #import "UBWebViewController.h"
-#import "UBPreferencesController.m"
+#import "UBPreferencesController.h"
 #import "UBScreensController.h"
 #import "UBWidgetsController.h"
 #import "UBWidgetsStore.h"
@@ -31,7 +31,7 @@ int const PORT = 41416;
     UBWindowsController* windowsController;
     BOOL shuttingDown;
     BOOL keepServerAlive;
-    int portOffset;
+    int port;
     UBWidgetsStore* widgetsStore;
     UBWidgetsController* widgetsController;
     BOOL needsRefresh;
@@ -44,9 +44,7 @@ int const PORT = 41416;
     statusBarItem = [self addStatusItemToMenu: statusBarMenu];
     preferences = [[UBPreferencesController alloc] init];
 
-    // NSTask doesn't terminate when xcode stop is pressed. Other ways of
-    // spawning the server, like system() or popen() have the same problem.
-    // So, hit em with a hammer :(
+    // A daemon left behind by an earlier launch would still hold the port.
     system("killall -m ubersichtd");
     
     widgetsStore = [[UBWidgetsStore alloc] init];
@@ -103,7 +101,7 @@ int const PORT = 41416;
     ];
     
     // start server and load webview
-    portOffset = 0;
+    port = PORT;
     [self startUp];
     
     [self listenToWallpaperChanges];
@@ -129,28 +127,21 @@ int const PORT = 41416;
     NSLog(@"starting server task");
     
     void (^handleData)(NSString*) = ^(NSString* output) {
-        // note that these might be called several times
-        if ([output rangeOfString:@"server started"].location != NSNotFound) {
+        // The daemon binds the first free port at or after PORT and says which.
+        NSRange started = [output rangeOfString:@"server started on port "];
+        if (started.location != NSNotFound) {
+            self->port = [[output substringFromIndex:NSMaxRange(started)] intValue];
             [[UBWebSocket sharedSocket] open:[self serverUrl:@"ws"]];
             [self->widgetsStore reset: [self fetchState]];
             // this will trigger a render
             [self->screensController syncScreens];
-
-        } else if ([output rangeOfString:@"EADDRINUSE"].location != NSNotFound) {
-            self->portOffset++;
         }
     };
 
     void (^handleExit)(NSTask*) = ^(NSTask* theTask) {
         if (!self->shuttingDown) {
-            // The server exited on its own -- a taken port, or a crash. Tear
-            // down but stay alive, or the retry below can never run and the
-            // port search never advances past the first busy port.
+            // The server crashed: tear down but stay alive for the relaunch.
             [self shutdown:YES];
-        }
-        if (self->portOffset >= 20) {
-            self->keepServerAlive = NO;
-            NSLog(@"couldn't find an open port. Giving up...");
         }
         if (self->keepServerAlive) {
             [self
@@ -249,7 +240,7 @@ int const PORT = 41416;
     
     NSMutableArray* arguments = [@[
         @"-d", widgetPath,
-        @"-p", [NSString stringWithFormat:@"%d", PORT + portOffset],
+        @"-p", [NSString stringWithFormat:@"%d", PORT],
         @"--public", [bundle resourcePath],
         @"--token", [UBWebViewController sessionToken]
     ] mutableCopy];
@@ -268,7 +259,7 @@ int const PORT = 41416;
     // trailing slash required for load policy in UBWindow
     return [NSURL
         URLWithString:[NSString
-            stringWithFormat:@"%@://127.0.0.1:%d/", protocol, PORT+portOffset
+            stringWithFormat:@"%@://127.0.0.1:%d/", protocol, port
         ]
     ];
 }

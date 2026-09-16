@@ -1,7 +1,7 @@
 {
   "name": "uebersicht-server",
   "version": "0.0.0",
-  "description": "Client bundle, transform kernel and widget diagnostics for R\u00fccksicht",
+  "description": "Client bundle and transform kernel for R\u00fccksicht",
   "scripts": {
     "test": "npm run-script test-local && npm run-script test-browser",
     "test-local": "tape -r coffee-script/register spec/backend/**/* | tap-spec",

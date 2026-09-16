@@ -6,31 +6,26 @@
 // this steps them together on a single rAF-driven loop instead of each widget
 // owning a timer. Two properties matter and are easy to lose:
 //
-// Frames are throttled to the highest frequency any participant asked for, not
-// to the display. Driving raw rAF on a 120Hz panel would quadruple the frame
-// rate against a 30Hz default and call it an optimization.
+// Each participant steps on its own interval, not the display's: raw rAF on a
+// 120Hz panel would quadruple the frame rate against a 30Hz default.
 //
 // The loop stops when nothing is animating, and rAF stops on its own when the
 // page is hidden or occluded, which is the parking behaviour the scheduler
-// wants -- a `setInterval` fallback would keep running behind a fullscreen
-// window, so it is used only where rAF is unavailable.
+// wants.
 
 const DEFAULT_FREQUENCY = 30;
 const IDLE_STEPS_BEFORE_PARK = 60;
 
 module.exports = function AnimationLoop(scheduler) {
-  const raf =
-    (scheduler && scheduler.request) ||
-    (typeof requestAnimationFrame === 'function'
-      ? requestAnimationFrame
-      : (cb) => setTimeout(() => cb(Date.now()), 16));
+  const raf = (scheduler && scheduler.request) || require('raf');
 
   const participants = new Map();
   let running = false;
   let lastStepAt = null;
 
   function step(now) {
-    if (!participants.size) {
+    const active = [...participants.values()].filter((p) => !p.parked);
+    if (!active.length) {
       running = false;
       lastStepAt = null;
       return;
@@ -44,7 +39,7 @@ module.exports = function AnimationLoop(scheduler) {
     // Gating the whole loop on the fastest interval instead would stall every
     // widget whenever frames arrive marginally faster than it: a 60Hz widget on
     // 16ms frames would never reach 16.67ms and would never step at all.
-    participants.forEach((p, id) => {
+    active.forEach((p) => {
       p.sinceStep += dt;
       if (p.sinceStep + 1e-9 < 1000 / p.frequency) return;
       const elapsed = p.sinceStep;
@@ -53,7 +48,7 @@ module.exports = function AnimationLoop(scheduler) {
       try {
         next = p.animate(elapsed);
       } catch (err) {
-        participants.delete(id);
+        p.parked = true;
         p.onError(err);
         return;
       }
@@ -61,7 +56,7 @@ module.exports = function AnimationLoop(scheduler) {
       // the loop entirely once every participant has settled.
       if (next === undefined) {
         p.idleSteps += 1;
-        if (p.idleSteps >= IDLE_STEPS_BEFORE_PARK) participants.delete(id);
+        if (p.idleSteps >= IDLE_STEPS_BEFORE_PARK) p.parked = true;
       } else {
         p.idleSteps = 0;
       }
@@ -84,6 +79,7 @@ module.exports = function AnimationLoop(scheduler) {
         frequency: frequency > 0 ? frequency : DEFAULT_FREQUENCY,
         idleSteps: 0,
         sinceStep: 0,
+        parked: false,
         onError: onError || function () {},
       });
       start();
@@ -99,6 +95,7 @@ module.exports = function AnimationLoop(scheduler) {
       const p = participants.get(id);
       if (p) {
         p.idleSteps = 0;
+        p.parked = false;
         start();
       }
     },

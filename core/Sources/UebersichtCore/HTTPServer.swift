@@ -36,25 +36,21 @@ public struct HTTPResponse {
 public final class HTTPServer {
     public typealias Handler = (HTTPRequest) -> HTTPResponse
 
-    private let listener: NWListener
+    private var listener: NWListener?
     private let handler: Handler
+    /// The port actually bound, once `onReady` has fired.
+    public private(set) var port: UInt16
     /// Called instead of `handler` when a request asks to switch protocols; the
     /// connection then belongs to the caller and is not closed here.
-    public var onUpgrade: ((NWConnection, String) -> Void)?
+    public var onUpgrade: ((NWConnection) -> Void)?
     /// Called after the handshake response has been written.
     public var onUpgraded: ((NWConnection) -> Void)?
-    // Each connection gets its own queue: a widget command can block its
-    // handler for seconds, and on one shared queue that stalls every other
-    // request and the listener with it.
+    // Concurrent: a widget command can block its handler for seconds, and on a
+    // serial queue that would stall every other request and the listener.
     private let queue = DispatchQueue(label: "ub.http", qos: .userInitiated, attributes: .concurrent)
 
-    public init(port: UInt16, handler: @escaping Handler) throws {
-        let parameters = NWParameters.tcp
-        parameters.requiredLocalEndpoint = .hostPort(host: .ipv4(.loopback), port: .init(rawValue: port)!)
-        // Deliberately not reusing the endpoint: a port already served by
-        // another Übersicht must fail to bind so the caller can move to the
-        // next one, rather than two servers answering the same requests.
-        self.listener = try NWListener(using: parameters)
+    public init(port: UInt16, handler: @escaping Handler) {
+        self.port = port
         self.handler = handler
     }
 
@@ -63,17 +59,32 @@ public final class HTTPServer {
     public var onReady: (() -> Void)?
     public var onFailure: ((Error) -> Void)?
 
-    public func start() {
+    /// Binds the first free port at or after the one given, up to `attempts`
+    /// away. The endpoint is deliberately not reused: a port another Rücksicht
+    /// is serving must fail, or two servers would answer the same requests.
+    public func start(attempts: Int = 20) {
+        let parameters = NWParameters.tcp
+        parameters.requiredLocalEndpoint = .hostPort(host: .ipv4(.loopback), port: .init(rawValue: port)!)
+        guard let listener = try? NWListener(using: parameters) else {
+            onFailure?(NWError.posix(.EINVAL))
+            return
+        }
+        self.listener = listener
         listener.stateUpdateHandler = { [weak self] state in
+            guard let self else { return }
             switch state {
-            case .ready: self?.onReady?()
-            case .failed(let error): self?.onFailure?(error)
+            case .ready: self.onReady?()
+            case .failed(.posix(.EADDRINUSE)) where attempts > 1:
+                listener.cancel()
+                self.port += 1
+                self.start(attempts: attempts - 1)
+            case .failed(let error): self.onFailure?(error)
             default: break
             }
         }
         listener.newConnectionHandler = { [weak self] connection in
             guard let self else { return }
-            connection.start(queue: DispatchQueue(label: "ub.http.conn", qos: .userInitiated))
+            connection.start(queue: self.queue)
             self.receive(on: connection, buffer: Data())
         }
         listener.start(queue: queue)
@@ -101,7 +112,7 @@ public final class HTTPServer {
                let upgrade = self.onUpgrade {
                 // Hand the connection over before replying: arming the read
                 // inside the send completion raced the client's first frame.
-                upgrade(connection, key)
+                upgrade(connection)
                 connection.send(
                     content: WebSocketHub.acceptResponse(
                         forKey: key,

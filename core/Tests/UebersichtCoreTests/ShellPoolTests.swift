@@ -43,8 +43,7 @@ final class PersistentShellTests: XCTestCase {
         )
     }
 
-    /// The HTTP thread serving a widget's `run()` and the command loop reach
-    /// the same shell whenever their command text matches.
+    /// A slow tick can still be running when the next one reaches the shell.
     func testConcurrentCommandsDoNotReadEachOthersOutput() throws {
         let shell = try shell()
         let lock = NSLock()
@@ -71,31 +70,33 @@ final class PersistentShellTests: XCTestCase {
 }
 
 final class ShellPoolTests: XCTestCase {
-    /// One shell per distinct command, so a widget cannot see another's
-    /// environment.
-    func testGivesEachCommandItsOwnShell() throws {
+    private let dir = NSTemporaryDirectory()
+
+    /// `$$` names the persistent bash, not the subshell a command runs in.
+    func testKeepsOneShellPerWidget() throws {
         let pool = ShellPool()
-        _ = try pool.run("export UB_POOL=one", in: NSTemporaryDirectory())
-        XCTAssertEqual(try pool.run("echo ${UB_POOL:-unset}", in: NSTemporaryDirectory()).stdout, "unset\n")
+        let first = try pool.run("echo $$", for: "a", in: dir).stdout
+        XCTAssertEqual(try pool.run("echo $$", for: "a", in: dir).stdout, first)
+        XCTAssertNotEqual(try pool.run("echo $$", for: "b", in: dir).stdout, first)
     }
 
-    func testReusesTheShellForARepeatedCommand() throws {
+    func testReplacesAShellThatDied() throws {
         let pool = ShellPool()
-        let first = try pool.run("echo $$", in: NSTemporaryDirectory()).stdout
-        XCTAssertEqual(try pool.run("echo $$", in: NSTemporaryDirectory()).stdout, first)
+        let first = try pool.run("echo $$", for: "a", in: dir).stdout
+        _ = try? pool.run("kill -9 $$", for: "a", in: dir)
+        let again = try pool.run("echo $$", for: "a", in: dir).stdout
+        XCTAssertNotEqual(again, first)
     }
 
-    /// `$$` names the persistent bash, not the subshell a command runs in, so a
-    /// changed value means the old shell was evicted and a new one spawned.
-    func testEvictsTheLeastRecentlyUsedShellOverTheCap() throws {
+    func testForgottenWidgetGetsAFreshShell() throws {
         let pool = ShellPool()
-        let oldest = "echo $$ # oldest"
-        let before = try pool.run(oldest, in: NSTemporaryDirectory()).stdout
+        let first = try pool.run("echo $$", for: "a", in: dir).stdout
+        pool.forget("a")
+        XCTAssertNotEqual(try pool.run("echo $$", for: "a", in: dir).stdout, first)
+    }
 
-        for filler in 0...ShellPool.capacity {
-            _ = try pool.run("echo filler\(filler)", in: NSTemporaryDirectory())
-        }
-
-        XCTAssertNotEqual(try pool.run(oldest, in: NSTemporaryDirectory()).stdout, before)
+    func testAdHocCommandsEachGetTheirOwnShell() throws {
+        let pool = ShellPool()
+        XCTAssertNotEqual(try pool.run("echo $$", in: dir).stdout, try pool.run("echo $$", in: dir).stdout)
     }
 }

@@ -5,9 +5,7 @@
 /build/
 
 server/node_modules
-server/release/node_modules
 server/release/public/client.js
-server/release/server.js
 
 # release.sh writes the release tarball here
 /dist/

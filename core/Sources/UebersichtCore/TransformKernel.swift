@@ -50,20 +50,13 @@ public final class TransformKernel {
     /// SwiftPM resource bundle cannot ship inside an .app at all, carrying no
     /// bundle format codesign recognizes. Both remain development fallbacks.
     private static func locate() -> URL? {
-        guard let executable = Bundle.main.executableURL?.deletingLastPathComponent() else {
-            return Bundle.module.url(forResource: "transform-kernel", withExtension: "js")
-        }
-
+        let executable = Bundle.main.executableURL!.deletingLastPathComponent()
         let candidates = [
-            executable.deletingLastPathComponent()
-                .appendingPathComponent("Resources/transform-kernel.js"),
+            executable.deletingLastPathComponent().appendingPathComponent("Resources/transform-kernel.js"),
             executable.appendingPathComponent("transform-kernel.js"),
         ]
-        for candidate in candidates
-        where FileManager.default.isReadableFile(atPath: candidate.path) {
-            return candidate
-        }
-        return Bundle.module.url(forResource: "transform-kernel", withExtension: "js")
+        return candidates.first { FileManager.default.isReadableFile(atPath: $0.path) }
+            ?? Bundle.module.url(forResource: "transform-kernel", withExtension: "js")
     }
 
     /// Compiles a widget's source to the JavaScript esbuild will bundle.

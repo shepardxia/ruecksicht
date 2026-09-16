@@ -9,7 +9,7 @@
 
 #import <Cocoa/Cocoa.h>
 
-/// The one place the shipped app name is spelled. Rebranding is this edit.
+/// The app name as shown in menus.
 extern NSString * const UBAppName;
 
 /// Identifier of the status bar item the widget section is inserted above.

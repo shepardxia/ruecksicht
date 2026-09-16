@@ -44,42 +44,14 @@ public final class Bundler {
         )
     }
 
+    /// A packaged build ships esbuild beside the daemon; a checkout run with
+    /// `swift run` from the repo root has npm's copy, or Homebrew's.
     private static func locate() -> String? {
-        // An explicit path beats guessing, and is how a packaged build says
-        // where its own copy lives.
-        if let declared = ProcessInfo.processInfo.environment["UB_ESBUILD"],
-           FileManager.default.isExecutableFile(atPath: declared) {
-            return declared
+        var candidates = ["server/node_modules/.bin/esbuild", "/opt/homebrew/bin/esbuild", "/usr/local/bin/esbuild"]
+        if let beside = Bundle.main.executableURL?.deletingLastPathComponent().appendingPathComponent("esbuild").path {
+            candidates.insert(beside, at: 0)
         }
-
-        // A packaged build ships esbuild beside the daemon. This has to come
-        // before any search rooted at the working directory: a launched .app
-        // inherits `/` as its cwd, where nothing resolves.
-        if let beside = Bundle.main.executableURL?
-            .deletingLastPathComponent()
-            .appendingPathComponent("esbuild").path,
-           FileManager.default.isExecutableFile(atPath: beside) {
-            return beside
-        }
-
-        let candidates = [
-            "node_modules/@esbuild/darwin-arm64/bin/esbuild",
-            "node_modules/@esbuild/darwin-x64/bin/esbuild",
-            "node_modules/.bin/esbuild",
-        ]
-        let roots = [
-            FileManager.default.currentDirectoryPath,
-            (FileManager.default.currentDirectoryPath as NSString).appendingPathComponent("server"),
-        ]
-        for root in roots {
-            for candidate in candidates {
-                let path = (root as NSString).appendingPathComponent(candidate)
-                if FileManager.default.isExecutableFile(atPath: path) { return path }
-            }
-        }
-        return ["/opt/homebrew/bin/esbuild", "/usr/local/bin/esbuild"].first {
-            FileManager.default.isExecutableFile(atPath: $0)
-        }
+        return candidates.first { FileManager.default.isExecutableFile(atPath: $0) }
     }
 
     /// Loaded on first use: evaluating the kernel costs a few hundred

@@ -58,7 +58,7 @@ clang -fobjc-arc -fmodules -mmacosx-version-min=13.0 -isysroot "$SDK" \
   -framework IOKit -framework Security -framework SystemConfiguration \
   -Wno-deprecated-declarations -Wno-nullability-completeness \
   -include "$ROOT/Uebersicht/Uebersicht-Prefix.pch" \
-  $(ls "$ROOT"/Uebersicht/*.m | grep -v UBPreferencesController.m) \
+  "$ROOT"/Uebersicht/*.m \
   "$ROOT/Pods/SocketRocket/SocketRocket/SRWebSocket.m" \
   -o "$APP/Contents/MacOS/Ruecksicht"
 

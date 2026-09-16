@@ -50,14 +50,6 @@ const handlers = {
     return Object.assign({}, state, {widgets: newWidgets});
   },
 
-  WIDGET_SETTINGS_CHANGED: (state, action) => {
-    const newSettings = Object.assign({}, state.settings, {
-      [action.payload.id]: action.payload.settings,
-    });
-
-    return Object.assign({}, state, {settings: newSettings});
-  },
-
   WIDGET_SET_TO_ALL_SCREENS: (state, action) => {
     return updateSettings(state, action.payload, {
       showOnAllScreens: true,

@@ -9,7 +9,7 @@ import Foundation
 /// requirement: anything this cannot read with certainty keeps its own timer on
 /// the page, where the compiled value is the real one.
 public enum WidgetSource {
-    public struct Schedule {
+    public struct Schedule: Equatable, Sendable {
         public let command: String
         public let interval: TimeInterval
     }

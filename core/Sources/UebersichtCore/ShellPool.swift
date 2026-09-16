@@ -1,5 +1,17 @@
 import Foundation
 
+public struct TickResult: Equatable, Sendable {
+    public let stdout: String
+    public let stderr: String
+    public let exitCode: Int32
+
+    public init(stdout: String, stderr: String, exitCode: Int32) {
+        self.stdout = stdout
+        self.stderr = stderr
+        self.exitCode = exitCode
+    }
+}
+
 /// A persistent bash, fed commands on fd 3.
 ///
 /// fd 3 rather than stdin: a widget command containing `read`, a bare `cat` or
@@ -32,6 +44,7 @@ public final class PersistentShell: @unchecked Sendable {
     /// this has hung, and the shell is dropped rather than waited on.
     static let timeout: TimeInterval = 30
 
+    public let workingDirectory: String
     private let pid: pid_t
     private let controlWrite: Int32
     private let stdoutRead: Int32
@@ -39,19 +52,20 @@ public final class PersistentShell: @unchecked Sendable {
     private let stateLock = NSLock()
     /// Held for a whole command. The control channel and the two sentinel
     /// streams are one conversation: a second command in flight would read the
-    /// first one's output. The HTTP thread serving `run()` and the command loop
-    /// both reach the same shell whenever a widget's ad-hoc command happens to
-    /// match a hoisted one.
+    /// first one's output.
     private let runLock = NSLock()
     private var alive = true
-    private var busy = false
     private var nonceCounter = 0
 
     public var isAlive: Bool { stateLock.lock(); defer { stateLock.unlock() }; return alive }
 
-    var isBusy: Bool { stateLock.lock(); defer { stateLock.unlock() }; return busy }
+    /// A write into a shell that has just died must surface as EPIPE, not kill
+    /// the process.
+    private static let ignoringSigpipe: Void = { signal(SIGPIPE, SIG_IGN) }()
 
     public init(workingDirectory: String, loginShell: Bool = false) throws {
+        Self.ignoringSigpipe
+        self.workingDirectory = workingDirectory
         var control = [Int32](repeating: 0, count: 2)
         var out = [Int32](repeating: 0, count: 2)
         var err = [Int32](repeating: 0, count: 2)
@@ -129,10 +143,8 @@ public final class PersistentShell: @unchecked Sendable {
         stateLock.lock()
         guard alive else { stateLock.unlock(); throw ShellError.died }
         nonceCounter += 1
-        busy = true
         let nonce = "UB\(pid)x\(nonceCounter)"
         stateLock.unlock()
-        defer { stateLock.lock(); busy = false; stateLock.unlock() }
 
         // Leading newline so bash numbers errors from the command text itself.
         let body = command.hasSuffix("\n") ? String(command.dropLast()) : command
@@ -151,7 +163,7 @@ public final class PersistentShell: @unchecked Sendable {
         while !sawOut || !sawErr {
             if Date() > deadline { throw ShellError.timedOut(Self.timeout) }
 
-            if !sawOut, let chunk = Self.read(stdoutRead, deadline: deadline) {
+            if !sawOut, let chunk = try Self.read(stdoutRead) {
                 outBuffer += chunk
                 let marker = Self.recordSeparator + nonce + " "
                 if let start = outBuffer.range(of: marker),
@@ -162,7 +174,7 @@ public final class PersistentShell: @unchecked Sendable {
                 }
             }
 
-            if !sawErr, let chunk = Self.read(stderrRead, deadline: deadline) {
+            if !sawErr, let chunk = try Self.read(stderrRead) {
                 errBuffer += chunk
                 let marker = Self.recordSeparator + nonce + Self.recordSeparator
                 if let start = errBuffer.range(of: marker) {
@@ -175,132 +187,66 @@ public final class PersistentShell: @unchecked Sendable {
         return TickResult(stdout: outBuffer, stderr: errBuffer, exitCode: exitCode)
     }
 
-    private static func read(_ fd: Int32, deadline: Date) -> String? {
-        var set = fd_set()
-        fdZero(&set)
-        fdSet(fd, &set)
-        var tv = timeval(tv_sec: 0, tv_usec: 20_000)
-        guard select(fd + 1, &set, nil, nil, &tv) > 0 else { return nil }
+    /// Whatever is waiting on `fd`, nil when nothing arrives within 20ms. End
+    /// of file means the shell is gone.
+    private static func read(_ fd: Int32) throws -> String? {
+        var descriptor = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+        guard poll(&descriptor, 1, 20) > 0 else { return nil }
 
         var buffer = [UInt8](repeating: 0, count: 8192)
         let n = Darwin.read(fd, &buffer, buffer.count)
+        if n == 0 { throw ShellError.died }
         guard n > 0 else { return nil }
         return String(decoding: buffer[0..<n], as: UTF8.self)
     }
 }
 
-private func fdZero(_ set: inout fd_set) {
-    withUnsafeMutableBytes(of: &set) { raw in
-        raw.copyBytes(from: [UInt8](repeating: 0, count: raw.count))
-    }
-}
-
-private func fdSet(_ fd: Int32, _ set: inout fd_set) {
-    let index = Int(fd) / 32
-    let bit = Int32(1) << (Int32(fd) % 32)
-    withUnsafeMutablePointer(to: &set.fds_bits) { pointer in
-        pointer.withMemoryRebound(to: Int32.self, capacity: 32) { bits in
-            bits[index] |= bit
-        }
-    }
-}
-
-/// One shell per distinct command and working directory, so identical commands
-/// from several screens share a process and a shell that dies is replaced
-/// rather than mourned.
-///
-/// Capped, because the key is the command text and widgets reach `run()` with
-/// command strings built from changing data: uncapped, such a widget would
-/// leave behind one bash and three pipes per tick, forever.
+/// One persistent shell per widget, so identical commands from several screens
+/// share a process, and a shell that dies is replaced rather than mourned.
 public final class ShellPool: @unchecked Sendable {
-    static let capacity = 32
-
     private let loginShell: Bool
     private var shells: [String: PersistentShell] = [:]
-    private var recent: [String] = []
     private let lock = NSLock()
 
     public init(loginShell: Bool = false) {
         self.loginShell = loginShell
     }
 
-    public func run(_ command: String, in workingDirectory: String) throws -> TickResult {
-        let key = workingDirectory + "\0" + command
-        let shell = try existingOrNew(for: key, in: workingDirectory)
+    /// Runs `command` in the shell kept for widget `id`. A shell that died
+    /// between ticks is replaced once; a hung command is not retried.
+    public func run(_ command: String, for id: String, in workingDirectory: String) throws -> TickResult {
         do {
-            return try shell.run(command)
+            return try shell(for: id, in: workingDirectory).run(command)
         } catch {
-            drop(key)
-            // One relaunch is honest recovery from a shell reaped between
-            // ticks; a second would mask a command that kills its own shell.
-            let replacement = try existingOrNew(for: key, in: workingDirectory)
-            return try replacement.run(command)
+            forget(id)
+            guard case PersistentShell.ShellError.died = error else { throw error }
+            return try shell(for: id, in: workingDirectory).run(command)
         }
     }
 
-    private func existingOrNew(for command: String, in workingDirectory: String) throws -> PersistentShell {
-        if let existing = claim(command) { return existing }
-
-        let shell = try PersistentShell(
-            workingDirectory: workingDirectory,
-            loginShell: loginShell
-        )
-        lock.lock()
-        // Another thread may have reached the same command while this one was
-        // spawning; the loser's shell is dropped rather than left running.
-        if let existing = shells[command], existing.isAlive {
-            touch(command)
-            lock.unlock()
-            shell.terminate()
-            return existing
-        }
-        shells[command] = shell
-        touch(command)
-        let evicted = overflow()
-        lock.unlock()
-
-        for stale in evicted { stale.terminate() }
-        return shell
+    /// Runs one command in a shell of its own, for a page's ad-hoc `run()`.
+    public func run(_ command: String, in workingDirectory: String) throws -> TickResult {
+        let shell = try PersistentShell(workingDirectory: workingDirectory, loginShell: loginShell)
+        defer { shell.terminate() }
+        return try shell.run(command)
     }
 
-    private func claim(_ command: String) -> PersistentShell? {
+    public func forget(_ id: String) {
         lock.lock()
-        defer { lock.unlock() }
-        guard let existing = shells[command], existing.isAlive else { return nil }
-        touch(command)
-        return existing
-    }
-
-    private func drop(_ command: String) {
-        lock.lock()
-        let shell = shells.removeValue(forKey: command)
-        recent.removeAll { $0 == command }
+        let shell = shells.removeValue(forKey: id)
         lock.unlock()
         shell?.terminate()
     }
 
-    /// Call with the lock held.
-    private func touch(_ command: String) {
-        recent.removeAll { $0 == command }
-        recent.append(command)
-    }
-
-    /// The least recently used shells above the cap, oldest first. A shell with
-    /// a command still running is left alone: closing its pipes would fail a
-    /// tick that is only slow. Call with the lock held.
-    private func overflow() -> [PersistentShell] {
-        var evicted: [PersistentShell] = []
-        var index = 0
-        while shells.count > Self.capacity, index < recent.count {
-            let command = recent[index]
-            guard let shell = shells[command], !shell.isBusy else {
-                index += 1
-                continue
-            }
-            shells.removeValue(forKey: command)
-            recent.remove(at: index)
-            evicted.append(shell)
+    private func shell(for id: String, in workingDirectory: String) throws -> PersistentShell {
+        lock.lock()
+        defer { lock.unlock() }
+        if let existing = shells[id], existing.isAlive, existing.workingDirectory == workingDirectory {
+            return existing
         }
-        return evicted
+        let shell = try PersistentShell(workingDirectory: workingDirectory, loginShell: loginShell)
+        shells[id]?.terminate()
+        shells[id] = shell
+        return shell
     }
 }

@@ -77,8 +77,10 @@ public final class DirectoryWatcher {
 
     private func handle(_ changed: [String]) {
         for file in changed {
-            if file == registry {
-                pending.insert(.sources)
+            // The registry's directory also holds the default widgets folder,
+            // which has a watcher of its own.
+            if let registry {
+                if file == registry { pending.insert(.sources) }
             } else if file.hasSuffix("/main.css") {
                 pending.insert(.masterStyle)
             } else if Sources.sourceExtensions.contains((file as NSString).pathExtension) {

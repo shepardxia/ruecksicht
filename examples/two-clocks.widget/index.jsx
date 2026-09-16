@@ -3,11 +3,6 @@
 // `refreshFrequency` is the DATA cadence: how often the shell command runs.
 // `animate(state, dtMs)` is the MOTION cadence, stepped on a loop shared with
 // every other animating widget on the page and parked when nothing is moving.
-//
-// Before the split, a widget that wanted smooth motion had to raise
-// refreshFrequency to frame rate, which re-ran its shell command 5-60 times a
-// second to move a bar a few pixels. That is the single largest avoidable cost
-// in a typical desktop.
 
 export const command = 'ps -A -o %cpu | awk \'{s+=$1} END {print s}\'';
 

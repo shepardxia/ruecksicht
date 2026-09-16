@@ -53,9 +53,7 @@ module.exports = function VirtualDomWidget(widgetObject) {
     run();
   }
 
-  // `refreshFrequency` is the data cadence; motion runs on its own clock so a
-  // widget that wants smooth movement no longer has to re-run its command at
-  // frame rate to get it.
+  // `refreshFrequency` is the data cadence; motion runs on its own clock.
   function startAnimating() {
     if (typeof implementation.animate !== 'function') return;
     animationLoop.add(

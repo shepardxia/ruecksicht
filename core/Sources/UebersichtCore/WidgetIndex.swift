@@ -7,7 +7,6 @@ public final class WidgetIndex {
     private let defaultDirectory: String
     private let lock = NSLock()
     private var widgets: [Widget] = []
-    private var driven: Set<String> = []
     private var sourceList: [String] = []
 
     public init(registry: String, defaultDirectory: String) {
@@ -16,19 +15,13 @@ public final class WidgetIndex {
         refresh()
     }
 
-    /// Re-reads the registry and every source. Whether a widget's command can
-    /// be hoisted is decided here too, once per change rather than per request.
+    /// Re-reads the registry and every source.
     @discardableResult
     public func refresh() -> [Widget] {
         let sources = Sources.read(registry: registry, defaultDirectory: defaultDirectory)
         let found = Sources.scan(sources)
-        var hoistable: Set<String> = []
-        for widget in found where WidgetSource.schedule(forSourceAt: widget.path) != nil {
-            hoistable.insert(widget.id)
-        }
         lock.lock()
         widgets = found
-        driven = hoistable
         sourceList = sources
         lock.unlock()
         return found
@@ -53,10 +46,5 @@ public final class WidgetIndex {
     public func directory(named name: String) -> String? {
         lock.lock(); defer { lock.unlock() }
         return widgets.first { $0.name == name }?.directory
-    }
-
-    public func isServerDriven(_ id: String) -> Bool {
-        lock.lock(); defer { lock.unlock() }
-        return driven.contains(id)
     }
 }
