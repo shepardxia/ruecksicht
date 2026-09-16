@@ -19,10 +19,7 @@ module.exports = ClassicWidget = (widgetObject) ->
 
   el = null
   contentEl = null
-  timer = null
-  started = false
   rendered = false
-  mounted = false
   commandLoop = null
   implementation = {}
   currentError = null
@@ -30,7 +27,7 @@ module.exports = ClassicWidget = (widgetObject) ->
   init = (widget) ->
     currentError = if widget.error then JSON.parse(widget.error) else null
     implementation = widget.implementation || {}
-    implementation.id == widget.id
+    implementation.id = widget.id
 
     implementation[k] ?= v for k, v of defaults
     implementation[k] ||= v for k, v of internalApi
@@ -77,10 +74,15 @@ module.exports = ClassicWidget = (widgetObject) ->
   api.forceRefresh = ->
     internalApi.refresh()
 
-  # starts the widget refresh cycle
+  # starts the widget refresh cycle; a literal command the server runs is
+  # pushed in through `receive` instead
   internalApi.start = start = ->
     return redraw(currentError) if currentError
+    return if widgetObject.serverDriven
     commandLoop.start()
+
+  api.receive = (result) ->
+    redraw((if result.error then {message: result.error}), result.output)
 
   # stops the widget refresh cycle
   internalApi.stop = stop = ->
