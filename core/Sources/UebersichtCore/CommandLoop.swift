@@ -9,12 +9,11 @@ public actor CommandLoop {
     private var scheduler = Scheduler()
     private var state = WidgetState()
     private let shells: ShellPool
-    private let widgetDirectory: String
     private var schedules: [String: WidgetSource.Schedule] = [:]
+    private var workingDirectories: [String: String] = [:]
 
-    public init(shells: ShellPool, widgetDirectory: String) {
+    public init(shells: ShellPool) {
         self.shells = shells
-        self.widgetDirectory = widgetDirectory
     }
 
     public var drivenWidgets: [String] { schedules.keys.sorted() }
@@ -29,11 +28,12 @@ public actor CommandLoop {
     /// Picks up widgets whose command or cadence changed, and forgets the ones
     /// that are gone. A widget whose command is unchanged keeps its place in
     /// the schedule rather than being re-armed on every save.
-    public func refresh(now: TimeInterval) {
+    public func refresh(widgets: [Widget], now: TimeInterval) {
         var live = Set<String>()
-        for widget in WidgetDirectory.scan(widgetDirectory) {
+        for widget in widgets {
             guard let schedule = WidgetSource.schedule(forSourceAt: widget.path) else { continue }
             live.insert(widget.id)
+            workingDirectories[widget.id] = widget.workingDirectory
             if schedules[widget.id]?.command != schedule.command
                 || schedules[widget.id]?.interval != schedule.interval
             {
@@ -44,6 +44,7 @@ public actor CommandLoop {
         }
         for gone in Set(schedules.keys).subtracting(live) {
             schedules.removeValue(forKey: gone)
+            workingDirectories.removeValue(forKey: gone)
             scheduler.remove(id: gone)
             state.forget(widget: gone)
         }
@@ -62,14 +63,14 @@ public actor CommandLoop {
     /// other widget's tick and every page that has just connected.
     public func tick(now: TimeInterval) async -> [(id: String, result: TickResult)] {
         let due = scheduler.due(now: now).compactMap { id in
-            schedules[id].map { (id: id, command: $0.command) }
+            schedules[id].map { (id: id, command: $0.command, directory: workingDirectories[id] ?? "/") }
         }
         guard !due.isEmpty else { return [] }
 
         let shells = self.shells
         let results = await withTaskGroup(of: (String, TickResult).self) { group in
             for widget in due {
-                group.addTask { (widget.id, await Self.run(widget.command, on: shells)) }
+                group.addTask { (widget.id, await Self.run(widget.command, in: widget.directory, on: shells)) }
             }
             var all: [(String, TickResult)] = []
             for await result in group { all.append(result) }
@@ -85,11 +86,11 @@ public actor CommandLoop {
     /// Off the cooperative pool: a shell command blocks its thread for as long
     /// as it runs, and enough of them would leave the pool with no thread to
     /// resume anything on.
-    private nonisolated static func run(_ command: String, on shells: ShellPool) async -> TickResult {
+    private nonisolated static func run(_ command: String, in directory: String, on shells: ShellPool) async -> TickResult {
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .utility).async {
                 do {
-                    continuation.resume(returning: try shells.run(command))
+                    continuation.resume(returning: try shells.run(command, in: directory))
                 } catch {
                     continuation.resume(
                         returning: TickResult(stdout: "", stderr: "\(error)", exitCode: -1)

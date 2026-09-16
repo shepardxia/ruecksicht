@@ -205,8 +205,9 @@ private func fdSet(_ fd: Int32, _ set: inout fd_set) {
     }
 }
 
-/// One shell per distinct command, so identical commands from several screens
-/// share a process and a shell that dies is replaced rather than mourned.
+/// One shell per distinct command and working directory, so identical commands
+/// from several screens share a process and a shell that dies is replaced
+/// rather than mourned.
 ///
 /// Capped, because the key is the command text and widgets reach `run()` with
 /// command strings built from changing data: uncapped, such a widget would
@@ -214,31 +215,30 @@ private func fdSet(_ fd: Int32, _ set: inout fd_set) {
 public final class ShellPool: @unchecked Sendable {
     static let capacity = 32
 
-    private let workingDirectory: String
     private let loginShell: Bool
     private var shells: [String: PersistentShell] = [:]
     private var recent: [String] = []
     private let lock = NSLock()
 
-    public init(workingDirectory: String, loginShell: Bool = false) {
-        self.workingDirectory = workingDirectory
+    public init(loginShell: Bool = false) {
         self.loginShell = loginShell
     }
 
-    public func run(_ command: String) throws -> TickResult {
-        let shell = try existingOrNew(for: command)
+    public func run(_ command: String, in workingDirectory: String) throws -> TickResult {
+        let key = workingDirectory + "\0" + command
+        let shell = try existingOrNew(for: key, in: workingDirectory)
         do {
             return try shell.run(command)
         } catch {
-            drop(command)
+            drop(key)
             // One relaunch is honest recovery from a shell reaped between
             // ticks; a second would mask a command that kills its own shell.
-            let replacement = try existingOrNew(for: command)
+            let replacement = try existingOrNew(for: key, in: workingDirectory)
             return try replacement.run(command)
         }
     }
 
-    private func existingOrNew(for command: String) throws -> PersistentShell {
+    private func existingOrNew(for command: String, in workingDirectory: String) throws -> PersistentShell {
         if let existing = claim(command) { return existing }
 
         let shell = try PersistentShell(

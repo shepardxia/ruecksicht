@@ -59,11 +59,23 @@ tree plus the generated `client.js`, and rewrites the formula's `url` and
 `sha256` to match. `--publish` also tags the commit and uploads the tarball to a
 GitHub release.
 
-## Writing widgets
+## Widgets
 
-Widgets live in `~/Library/Application Support/Rücksicht/widgets`. A widget is a
-`<name>.widget` directory there, and every `.jsx`, `.js` or `.coffee` file
-directly inside it is loaded as a widget of its own. Subdirectories are not
+```sh
+rk add ~/code/my-widget                      # a directory is a widget
+rk add https://github.com/you/some-widget    # cloned, then the same
+rk list
+rk remove some-widget
+```
+
+A widget is a directory: every `.jsx`, `.js` or `.coffee` file directly inside
+it is loaded as a widget of its own, its files are served under its name, and
+its command runs inside it. `~/Library/Application Support/Rücksicht/widgets`
+is always registered; `<name>.widget` folders in it work the way Übersicht's
+did, with commands running from the folder. Registered paths are one per line
+in `~/Library/Application Support/Rücksicht/sources`; the app watches it.
+
+## Writing widgets Subdirectories are not
 scanned, so shared code and dependencies belong in one (`lib/`, `src/`,
 `node_modules/`) and are reached by import. A `.disabled` suffix keeps a file
 from loading. Edits are applied live, and widget state survives a reload, so you

@@ -74,28 +74,28 @@ final class ShellPoolTests: XCTestCase {
     /// One shell per distinct command, so a widget cannot see another's
     /// environment.
     func testGivesEachCommandItsOwnShell() throws {
-        let pool = ShellPool(workingDirectory: NSTemporaryDirectory())
-        _ = try pool.run("export UB_POOL=one")
-        XCTAssertEqual(try pool.run("echo ${UB_POOL:-unset}").stdout, "unset\n")
+        let pool = ShellPool()
+        _ = try pool.run("export UB_POOL=one", in: NSTemporaryDirectory())
+        XCTAssertEqual(try pool.run("echo ${UB_POOL:-unset}", in: NSTemporaryDirectory()).stdout, "unset\n")
     }
 
     func testReusesTheShellForARepeatedCommand() throws {
-        let pool = ShellPool(workingDirectory: NSTemporaryDirectory())
-        let first = try pool.run("echo $$").stdout
-        XCTAssertEqual(try pool.run("echo $$").stdout, first)
+        let pool = ShellPool()
+        let first = try pool.run("echo $$", in: NSTemporaryDirectory()).stdout
+        XCTAssertEqual(try pool.run("echo $$", in: NSTemporaryDirectory()).stdout, first)
     }
 
     /// `$$` names the persistent bash, not the subshell a command runs in, so a
     /// changed value means the old shell was evicted and a new one spawned.
     func testEvictsTheLeastRecentlyUsedShellOverTheCap() throws {
-        let pool = ShellPool(workingDirectory: NSTemporaryDirectory())
+        let pool = ShellPool()
         let oldest = "echo $$ # oldest"
-        let before = try pool.run(oldest).stdout
+        let before = try pool.run(oldest, in: NSTemporaryDirectory()).stdout
 
         for filler in 0...ShellPool.capacity {
-            _ = try pool.run("echo filler\(filler)")
+            _ = try pool.run("echo filler\(filler)", in: NSTemporaryDirectory())
         }
 
-        XCTAssertNotEqual(try pool.run(oldest).stdout, before)
+        XCTAssertNotEqual(try pool.run(oldest, in: NSTemporaryDirectory()).stdout, before)
     }
 }

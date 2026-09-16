@@ -1,0 +1,60 @@
+#!/bin/bash
+# rk -- Rücksicht's widgets from the command line.
+#
+#   rk add <dir>        register a directory as a widget (or a folder of *.widget)
+#   rk add <git url>    clone it under Rücksicht's widgets folder and register it
+#   rk remove <name>    unregister; --purge also deletes a clone rk made
+#   rk update [name]    git pull the clones rk made
+#   rk list             registered sources
+#   rk log [-f]         the app's log
+#   rk restart          restart the app
+#
+# The registry is one path per line. The app's daemon watches it, so add and
+# remove take effect at once.
+set -e
+SUPPORT="$HOME/Library/Application Support/Rücksicht"
+WIDGETS="$SUPPORT/widgets"
+REGISTRY="$SUPPORT/sources"
+LOG="$(brew --prefix 2>/dev/null)/var/log/ruecksicht.log"
+
+usage() { sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
+registered() { [ -f "$REGISTRY" ] && grep -vx '' "$REGISTRY" || true; }
+entry() { registered | while read -r p; do [ "$(basename "$p")" = "$1" ] && echo "$p"; done | head -1; }
+
+case "$1" in
+    add)
+        [ -n "$2" ] || usage
+        mkdir -p "$SUPPORT"
+        case "$2" in
+            *://*|git@*)
+                name="$(basename "${2%.git}")"
+                dest="$WIDGETS/$name"
+                [ -e "$dest" ] || git clone -q "$2" "$dest"
+                path="$dest" ;;
+            *)  path="$(cd "$2" && pwd)" ;;
+        esac
+        registered | grep -qx "$path" || echo "$path" >> "$REGISTRY"
+        echo "$(basename "$path")  $path" ;;
+    remove)
+        [ -n "$2" ] || usage
+        path="$(entry "$2")"; [ -n "$path" ] || { echo "not registered: $2" >&2; exit 1; }
+        grep -vx "$path" "$REGISTRY" > "$REGISTRY.tmp" || true; mv "$REGISTRY.tmp" "$REGISTRY"
+        if [ "$3" = "--purge" ] && [ "$(dirname "$path")" = "$WIDGETS" ] && [ -d "$path/.git" ]; then
+            rm -rf "$path"
+        fi ;;
+    update)
+        registered | while read -r p; do
+            [ -d "$p/.git" ] && [ "$(dirname "$p")" = "$WIDGETS" ] || continue
+            [ -z "$2" ] || [ "$(basename "$p")" = "$2" ] || continue
+            echo "$(basename "$p")"; git -C "$p" pull -q --ff-only
+        done ;;
+    list)
+        echo "$WIDGETS  (default)"
+        registered | while read -r p; do echo "$(basename "$p")  $p"; done ;;
+    log)
+        [ "$2" = "-f" ] && exec tail -f "$LOG" || tail -n 50 "$LOG" ;;
+    restart)
+        if brew services list 2>/dev/null | grep -q '^ruecksicht'; then brew services restart ruecksicht
+        else osascript -e 'tell application id "local.ruecksicht.Ruecksicht" to quit' 2>/dev/null; sleep 1; open -a "Rücksicht"; fi ;;
+    *) usage ;;
+esac

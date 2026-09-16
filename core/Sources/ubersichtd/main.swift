@@ -8,6 +8,7 @@ import UebersichtCore
 struct Options {
     var port: UInt16 = 41416
     var widgetDirectory = "\(NSHomeDirectory())/Library/Application Support/Rücksicht/widgets"
+    var registry = "\(NSHomeDirectory())/Library/Application Support/Rücksicht/sources"
     var publicDirectory = "server/public"
     var loginShell = false
     var token: String?
@@ -34,6 +35,11 @@ func parseOptions() -> Options {
                 options.publicDirectory = value
                 arguments.removeFirst()
             }
+        case "--sources":
+            if let value = arguments.first {
+                options.registry = value
+                arguments.removeFirst()
+            }
         case "--token":
             if let value = arguments.first {
                 options.token = value
@@ -54,10 +60,7 @@ setvbuf(stdout, nil, _IONBF, 0)
 
 let options = parseOptions()
 
-let shells = ShellPool(
-    workingDirectory: options.widgetDirectory,
-    loginShell: options.loginShell
-)
+let shells = ShellPool(loginShell: options.loginShell)
 
 let bundler: Bundler
 do {
@@ -69,7 +72,7 @@ do {
 
 let allowedOrigin = "http://127.0.0.1:\(options.port)"
 let hub = WebSocketHub()
-let index = WidgetIndex(directory: options.widgetDirectory)
+let index = WidgetIndex(registry: options.registry, defaultDirectory: options.widgetDirectory)
 
 func jsonString(_ value: String) -> String {
     let escaped = value
@@ -140,7 +143,7 @@ let server = try HTTPServer(port: options.port) { request in
     if request.method == "POST", path == "/run/" {
         let command = String(decoding: request.body, as: UTF8.self)
         do {
-            let result = try shells.run(command)
+            let result = try shells.run(command, in: options.widgetDirectory)
             return HTTPResponse(
                 status: result.stderr.isEmpty ? 200 : 500,
                 body: Data((result.stdout + result.stderr).utf8)
@@ -170,8 +173,14 @@ let server = try HTTPServer(port: options.port) { request in
         }
     }
 
+    // A widget's files are served under its name, wherever it lives.
     let relative = path.hasPrefix("/") ? String(path.dropFirst()) : path
     if !relative.isEmpty, !relative.contains("..") {
+        let parts = relative.split(separator: "/", maxSplits: 1).map(String.init)
+        if parts.count == 2, let directory = index.directory(named: parts[0]),
+           let file = serveFile((directory as NSString).appendingPathComponent(parts[1])) {
+            return file
+        }
         for root in [options.publicDirectory, options.widgetDirectory] {
             if let file = serveFile((root as NSString).appendingPathComponent(relative)) {
                 return file
@@ -199,7 +208,7 @@ server.onFailure = { error in
 server.onReady = {
     let widgets = index.all
     print("server started on port \(options.port)")
-    print("watching \(options.widgetDirectory)")
+    print("watching \(index.sources.joined(separator: ", "))")
     print("\(widgets.count) widget(s): \(widgets.map(\.id).joined(separator: ", "))")
 }
 server.onUpgrade = { connection, _ in hub.add(connection) }
@@ -207,17 +216,14 @@ server.onUpgraded = { connection in hub.ready(connection) }
 server.start()
 
 // Widget edits reach the pages over the live channel; without it a save would
-// only show up on a reload.
+// only show up on a reload. One watcher per source, and one on the registry's
+// directory so adding a source takes effect without a restart.
 var known = Set(index.all.map(\.id))
-let watcher = DirectoryWatcher(path: options.widgetDirectory) { changes in
-    if changes.contains(.masterStyle) {
-        hub.broadcast("{\"type\":\"MASTER_STYLE_CHANGED\"}")
-    }
-    guard changes.contains(.widgets) else { return }
+var watchers: [String: DirectoryWatcher] = [:]
 
+func announce() {
     let current = index.refresh()
     let currentIds = Set(current.map(\.id))
-
     for gone in known.subtracting(currentIds) {
         hub.broadcast("{\"type\":\"WIDGET_REMOVED\",\"payload\":\"\(gone)\"}")
     }
@@ -227,13 +233,38 @@ let watcher = DirectoryWatcher(path: options.widgetDirectory) { changes in
         hub.broadcast("{\"type\":\"WIDGET_ADDED\",\"payload\":\(widgetPayload(widget))}")
     }
     known = currentIds
-    Task { await loop.refresh(now: Date().timeIntervalSince1970) }
+    Task { await loop.refresh(widgets: current, now: Date().timeIntervalSince1970) }
 }
-watcher.start()
+
+func handle(_ changes: Set<DirectoryWatcher.Change>) {
+    if changes.contains(.masterStyle) {
+        hub.broadcast("{\"type\":\"MASTER_STYLE_CHANGED\"}")
+    }
+    if changes.contains(.sources) { watchSources() }
+    if changes.contains(.widgets) || changes.contains(.sources) { announce() }
+}
+
+func watchSources() {
+    let wanted = Set(Sources.read(registry: options.registry, defaultDirectory: options.widgetDirectory))
+    for gone in Set(watchers.keys).subtracting(wanted) { watchers.removeValue(forKey: gone)?.stop() }
+    for source in wanted where watchers[source] == nil {
+        let watcher = DirectoryWatcher(path: source, onChange: handle)
+        watcher.start()
+        watchers[source] = watcher
+    }
+}
+
+let registryWatcher = DirectoryWatcher(
+    path: (options.registry as NSString).deletingLastPathComponent,
+    registry: options.registry,
+    onChange: handle
+)
+registryWatcher.start()
+watchSources()
 // The command loop lives here rather than in each page, so a widget's command
 // runs once however many screens show it, and an unchanged result never wakes
 // a page to re-render the same thing.
-let loop = CommandLoop(shells: shells, widgetDirectory: options.widgetDirectory)
+let loop = CommandLoop(shells: shells)
 
 func message(_ id: String, _ result: TickResult) -> String {
     let payload = result.stderr.isEmpty
@@ -268,7 +299,7 @@ hub.onConnect = { connection in
 }
 
 Task {
-    await loop.refresh(now: Date().timeIntervalSince1970)
+    await loop.refresh(widgets: index.all, now: Date().timeIntervalSince1970)
     let driven = await loop.drivenWidgets
     print("driving \(driven.count) widget(s): \(driven.joined(separator: ", "))")
 }

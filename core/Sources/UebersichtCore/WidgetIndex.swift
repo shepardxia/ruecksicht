@@ -1,27 +1,27 @@
 import Foundation
 
-/// The current set of widgets, refreshed when the directory changes rather than
+/// The current set of widgets, refreshed when a source changes rather than
 /// rebuilt per request.
-///
-/// Serving a bundle or a state document used to re-list the directory and
-/// re-read every widget's source to answer one question about one widget.
 public final class WidgetIndex {
-    private let directory: String
+    private let registry: String
+    private let defaultDirectory: String
     private let lock = NSLock()
     private var widgets: [Widget] = []
     private var driven: Set<String> = []
+    private var sourceList: [String] = []
 
-    public init(directory: String) {
-        self.directory = directory
+    public init(registry: String, defaultDirectory: String) {
+        self.registry = registry
+        self.defaultDirectory = defaultDirectory
         refresh()
     }
 
-    /// Re-reads the directory. Whether a widget's command can be hoisted is
-    /// decided here too, so the answer is read from source once per change
-    /// rather than once per request.
+    /// Re-reads the registry and every source. Whether a widget's command can
+    /// be hoisted is decided here too, once per change rather than per request.
     @discardableResult
     public func refresh() -> [Widget] {
-        let found = WidgetDirectory.scan(directory)
+        let sources = Sources.read(registry: registry, defaultDirectory: defaultDirectory)
+        let found = Sources.scan(sources)
         var hoistable: Set<String> = []
         for widget in found where WidgetSource.schedule(forSourceAt: widget.path) != nil {
             hoistable.insert(widget.id)
@@ -29,6 +29,7 @@ public final class WidgetIndex {
         lock.lock()
         widgets = found
         driven = hoistable
+        sourceList = sources
         lock.unlock()
         return found
     }
@@ -38,9 +39,20 @@ public final class WidgetIndex {
         return widgets
     }
 
+    public var sources: [String] {
+        lock.lock(); defer { lock.unlock() }
+        return sourceList
+    }
+
     public func widget(id: String) -> Widget? {
         lock.lock(); defer { lock.unlock() }
         return widgets.first { $0.id == id }
+    }
+
+    /// The directory whose files are served under `name`.
+    public func directory(named name: String) -> String? {
+        lock.lock(); defer { lock.unlock() }
+        return widgets.first { $0.name == name }?.directory
     }
 
     public func isServerDriven(_ id: String) -> Bool {

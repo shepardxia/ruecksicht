@@ -1,6 +1,6 @@
 import Foundation
 
-/// Watches a widget directory and reports what changed.
+/// Watches one directory and reports what changed.
 ///
 /// Events are coalesced on a short delay: an editor writing a file produces
 /// several FSEvents, and rebundling a widget once per keystroke-flurry is the
@@ -9,17 +9,21 @@ public final class DirectoryWatcher {
     public enum Change: Equatable {
         case widgets
         case masterStyle
+        case sources
     }
 
     private var stream: FSEventStreamRef?
     private let path: String
+    /// A file inside `path` whose change means the set of sources changed.
+    private let registry: String?
     private let onChange: (Set<Change>) -> Void
     private let queue = DispatchQueue(label: "ub.watch")
     private var pending: Set<Change> = []
     private var coalescing: DispatchWorkItem?
 
-    public init(path: String, onChange: @escaping (Set<Change>) -> Void) {
+    public init(path: String, registry: String? = nil, onChange: @escaping (Set<Change>) -> Void) {
         self.path = path
+        self.registry = registry
         self.onChange = onChange
     }
 
@@ -73,9 +77,11 @@ public final class DirectoryWatcher {
 
     private func handle(_ changed: [String]) {
         for file in changed {
-            if file.hasSuffix("/main.css") {
+            if file == registry {
+                pending.insert(.sources)
+            } else if file.hasSuffix("/main.css") {
                 pending.insert(.masterStyle)
-            } else if WidgetDirectory.sourceExtensions.contains((file as NSString).pathExtension) {
+            } else if Sources.sourceExtensions.contains((file as NSString).pathExtension) {
                 pending.insert(.widgets)
             }
         }

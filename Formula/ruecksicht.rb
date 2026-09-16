@@ -21,6 +21,7 @@ class Ruecksicht < Formula
 
     system "./build-app.sh"
     prefix.install "build/Rücksicht.app"
+    bin.install "bin/rk"
   end
 
   service do
@@ -43,7 +44,7 @@ class Ruecksicht < Formula
       To run it now and at every login:
         brew services start ruecksicht
 
-      Widgets live in ~/Library/Application Support/Rücksicht/widgets.
+      Widgets: `rk add <dir | git url>`, `rk list`, `rk remove <name>`.
     EOS
   end
 
