@@ -62,7 +62,10 @@ GitHub release.
 rk add ~/code/my-widget                      # a directory is a widget
 rk add https://github.com/you/some-widget    # cloned, then the same
 rk list
-rk remove some-widget
+rk update                                    # git pull the clones
+rk remove some-widget [--purge]
+rk log [-f]
+rk restart
 ```
 
 A widget is a directory: every `.jsx`, `.js` or `.coffee` file directly inside
