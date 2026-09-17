@@ -18,6 +18,8 @@ NS_ASSUME_NONNULL_BEGIN
    interactionEnabled:(Boolean)interactionEnabled;
 
 - (void)closeAll;
+/// The GPU helper behind the windows, 0 when there are none.
+- (pid_t)gpuProcessIdentifier;
 - (void)workspaceChanged;
 - (void)wallpaperChanged;
 - (void)showDebugConsolesForScreen:(NSNumber*)screenId;

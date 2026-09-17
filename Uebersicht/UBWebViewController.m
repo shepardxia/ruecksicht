@@ -90,6 +90,11 @@
     [self forceRedraw:(WKWebView*)view];
 }
 
+- (pid_t)gpuProcessIdentifier
+{
+    return [[view valueForKey:@"_gpuProcessIdentifier"] intValue];
+}
+
 - (void)destroy
 {
     [self teardownWebview:(WKWebView *)view];

@@ -130,6 +130,11 @@
     [webViewController redraw];
 }
 
+- (pid_t)gpuProcessIdentifier
+{
+    return [webViewController gpuProcessIdentifier];
+}
+
 #
 #pragma mark window type and interaction
 #

@@ -29,5 +29,6 @@ typedef NS_ENUM(NSInteger, UBWindowType) {
 - (void)reload;
 - (void)workspaceChanged;
 - (void)wallpaperChanged;
+- (pid_t)gpuProcessIdentifier;
 
 @end

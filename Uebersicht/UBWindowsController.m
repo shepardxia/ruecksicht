@@ -80,6 +80,12 @@
     return nil;
 }
 
+- (pid_t)gpuProcessIdentifier
+{
+    UBWindowGroup* group = [windows allValues].firstObject;
+    return [group.background gpuProcessIdentifier];
+}
+
 - (void)closeAll
 {
     for (UBWindowGroup* window in [windows allValues]) {

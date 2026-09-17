@@ -34,6 +34,7 @@ int const PORT = 41416;
     int port;
     UBWidgetsStore* widgetsStore;
     UBWidgetsController* widgetsController;
+    pid_t gpuProcess;
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification
@@ -101,6 +102,17 @@ int const PORT = 41416;
     // start server and load webview
     port = PORT;
     [self startUp];
+
+    // When WebKit's GPU helper dies, every web view keeps its page but never
+    // paints again, and no reload brings it back. Only new views do.
+    [NSTimer scheduledTimerWithTimeInterval:5 repeats:YES block:^(NSTimer* timer) {
+        pid_t current = [self->windowsController gpuProcessIdentifier];
+        if (self->gpuProcess && current != self->gpuProcess) {
+            NSLog(@"gpu process %d gone (now %d), rebuilding windows", self->gpuProcess, current);
+            [self->screensController syncScreens];
+        }
+        self->gpuProcess = current;
+    }];
     
     [self listenToWallpaperChanges];
 }

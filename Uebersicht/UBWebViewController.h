@@ -19,5 +19,7 @@
 - (void)reload;
 - (void)redraw;
 - (void)destroy;
+/// WebKit's GPU helper for this view, 0 when it has none.
+- (pid_t)gpuProcessIdentifier;
 
 @end
