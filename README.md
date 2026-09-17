@@ -30,34 +30,7 @@ inside it. `~/Library/Application Support/Rücksicht/widgets` is always
 registered, and `<name>.widget` folders in it work as they did in Übersicht.
 Edits apply live.
 
-## Writing widgets
-
-```jsx
-import {css, styled, run, request, React} from 'uebersicht';
-```
-
-| export | type | meaning |
-| --- | --- | --- |
-| `command` | string, or `(dispatch) => …` | shell command to run, or a function that dispatches itself |
-| `refreshFrequency` | number | ms between runs, 1000 by default |
-| `initialState` | any | state before the first event |
-| `updateState` | `(event, previous) => next` | reducer over events and command output |
-| `init` | `(dispatch) => …` | called once on load |
-| `render` | `(state, dispatch) => JSX` | the markup |
-| `className` | string | CSS for the root node, including its position |
-| `animate` | `(state, dtMs) => next \| undefined` | one step of motion; `undefined` parks the loop |
-| `animationFrequency` | number | steps per second |
-
-`refreshFrequency` is the data cadence and `animationFrequency` the motion
-cadence; see `examples/two-clocks.widget`. Clicks reach widgets only with
-"Enable interaction" on. CoffeeScript widgets: [ClassicWidgets.md](ClassicWidgets.md).
-
-## Scripting
-
-```applescript
-tell application id "local.ruecksicht.Ruecksicht" to refresh
-tell application id "local.ruecksicht.Ruecksicht" to set hidden of widget id "my-widget" to true
-```
+Authoring: [WritingWidgets.md](WritingWidgets.md).
 
 ## Building
 
