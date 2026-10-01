@@ -171,11 +171,11 @@ server.onUpgraded = { connection in
 }
 server.start()
 
-// Widgets run on one timer armed for the next deadline; a tick re-arms it.
+// Widgets run on one timer armed for the next deadline.
 let ticker = DispatchSource.makeTimerSource(queue: DispatchQueue(label: "ub.loop", qos: .utility))
 ticker.setEventHandler {
     Task {
-        for (id, result) in await loop.tick(now: Date().timeIntervalSince1970) {
+        await loop.tick(now: Date().timeIntervalSince1970) { id, result in
             hub.broadcast(message(id, result))
         }
         await arm()

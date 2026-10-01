@@ -12,6 +12,7 @@ public actor CommandLoop {
     private var scheduler = Scheduler()
     private var entries: [String: Entry] = [:]
     private var results: [String: TickResult] = [:]
+    private var running = Set<String>()
     private let shells: ShellPool
 
     public init(shells: ShellPool) {
@@ -48,29 +49,40 @@ public actor CommandLoop {
         }
     }
 
-    /// Runs whatever is due, concurrently: a widget's command may take seconds
-    /// or hang until the shell timeout, and in series it would hold back every
-    /// other widget's tick.
-    ///
-    /// Every tick is reported, including one whose output repeats the last. A
-    /// widget's `updateState` is its clock as much as its parser.
-    public func tick(now: TimeInterval) async -> [(id: String, result: TickResult)] {
-        let due = scheduler.due(now: now).compactMap { id in
-            entries[id].map { (id: id, command: $0.schedule.command, directory: $0.directory) }
+    /// Starts the command of every widget that is due and returns without
+    /// waiting for any of them: a command may take seconds, or hang until the
+    /// shell timeout. Each result goes to `report` as it arrives, including
+    /// one that repeats the last: a widget's `updateState` is its clock as
+    /// much as its parser.
+    public func tick(now: TimeInterval, report: @escaping @Sendable (String, TickResult) -> Void) {
+        for job in claim(now: now) {
+            Task { report(job.id, await run(job)) }
         }
-        guard !due.isEmpty else { return [] }
+    }
 
-        let shells = self.shells
-        let ran = await withTaskGroup(of: (String, TickResult).self) { group in
-            for widget in due {
-                group.addTask { (widget.id, await Self.run(widget.command, for: widget.id, in: widget.directory, on: shells)) }
-            }
-            var all: [(String, TickResult)] = []
-            for await result in group { all.append(result) }
-            return all
+    /// One due tick of one widget. Its widget is not claimed again until the
+    /// job has been run.
+    struct Job: Sendable {
+        let id: String
+        let command: String
+        let directory: String
+    }
+
+    /// A widget whose last command is still running sits the tick out. Its
+    /// shell runs one command at a time, and ticks queued behind a hung one
+    /// would only pile up.
+    func claim(now: TimeInterval) -> [Job] {
+        scheduler.due(now: now).compactMap { id in
+            guard let entry = entries[id], running.insert(id).inserted else { return nil }
+            return Job(id: id, command: entry.schedule.command, directory: entry.directory)
         }
-        for (id, result) in ran { results[id] = result }
-        return ran.map { (id: $0.0, result: $0.1) }
+    }
+
+    func run(_ job: Job) async -> TickResult {
+        let result = await Self.run(job.command, for: job.id, in: job.directory, on: shells)
+        running.remove(job.id)
+        if entries[job.id] != nil { results[job.id] = result }
+        return result
     }
 
     /// Off the cooperative pool: a shell command blocks its thread for as long
