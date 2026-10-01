@@ -61,6 +61,39 @@ final class PersistentShellTests: XCTestCase {
         }
     }
 
+    /// The daemon spawns its shells from worker threads, which run with
+    /// signals blocked. `async`, because `sync` runs its block on the caller.
+    private func shellSpawnedOnAWorker() -> PersistentShell {
+        var shell: PersistentShell!
+        let spawned = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            shell = try! PersistentShell(workingDirectory: NSTemporaryDirectory())
+            spawned.signal()
+        }
+        spawned.wait()
+        addTeardownBlock { shell.terminate() }
+        return shell
+    }
+
+    func testAShellCanBeTerminatedWhileOneSpawnedAfterItLives() {
+        let first = shellSpawnedOnAWorker()
+        _ = shellSpawnedOnAWorker()
+
+        let terminated = expectation(description: "terminate returns")
+        DispatchQueue.global().async {
+            first.terminate()
+            terminated.fulfill()
+        }
+        wait(for: [terminated], timeout: 5)
+    }
+
+    /// 143 is death by SIGTERM. A command that inherited the worker thread's
+    /// signal mask could not be signalled, and would report the sleep's 0.
+    func testACommandCanBeSignalled() throws {
+        let shell = shellSpawnedOnAWorker()
+        XCTAssertEqual(try shell.run("sleep 3 & kill -TERM $!; wait $!; echo $?").stdout, "143\n")
+    }
+
     func testTerminatedShellRefusesFurtherCommands() throws {
         let shell = try PersistentShell(workingDirectory: NSTemporaryDirectory())
         shell.terminate()

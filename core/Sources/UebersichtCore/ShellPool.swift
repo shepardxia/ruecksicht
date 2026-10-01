@@ -79,18 +79,31 @@ public final class PersistentShell: @unchecked Sendable {
         posix_spawn_file_actions_adddup2(&actions, out[1], 1)
         posix_spawn_file_actions_adddup2(&actions, err[1], 2)
         posix_spawn_file_actions_adddup2(&actions, control[0], 3)
-        posix_spawn_file_actions_addclose(&actions, control[1])
-        posix_spawn_file_actions_addclose(&actions, out[0])
-        posix_spawn_file_actions_addclose(&actions, err[0])
         // The child chdirs itself. FileManager's currentDirectoryPath is
         // process-wide, so setting it around the spawn would race any other
         // thread spawning a shell. Still the `_np` spelling: the name without
         // it arrived in macOS 26 and this daemon runs on 13.
         posix_spawn_file_actions_addchdir_np(&actions, workingDirectory)
 
+        // The child gets the four descriptors above and nothing else. A shell
+        // that inherited an earlier shell's control pipe would keep it open,
+        // and closing that pipe would no longer end the earlier shell.
+        //
+        // Its signals are reset as well. Shells are spawned from worker
+        // threads, which run with signals blocked, and a mask is inherited:
+        // neither the shell nor a widget's command could be terminated.
         var attrs: posix_spawnattr_t?
         posix_spawnattr_init(&attrs)
-        posix_spawnattr_setflags(&attrs, Int16(POSIX_SPAWN_SETSIGDEF))
+        var unblocked = sigset_t()
+        sigemptyset(&unblocked)
+        posix_spawnattr_setsigmask(&attrs, &unblocked)
+        var defaulted = sigset_t()
+        sigfillset(&defaulted)
+        posix_spawnattr_setsigdefault(&attrs, &defaulted)
+        posix_spawnattr_setflags(
+            &attrs,
+            Int16(POSIX_SPAWN_CLOEXEC_DEFAULT | POSIX_SPAWN_SETSIGMASK | POSIX_SPAWN_SETSIGDEF)
+        )
 
         let arguments = loginShell
             ? ["bash", "-l", "-c", Self.driver]
