@@ -16,10 +16,10 @@
 + (NSString*)sessionToken;
 - (id)initWithFrame:(NSRect)frame;
 - (void)load:(NSURL*)url;
-- (void)reload;
 - (void)redraw;
 - (void)destroy;
-/// WebKit's GPU helper for this view, 0 when it has none.
-- (pid_t)gpuProcessIdentifier;
+/// Runs `stalled` when the page renders no frame within `timeout`.
+- (void)expectFrameWithin:(NSTimeInterval)timeout
+                   orElse:(void (^)(void))stalled;
 
 @end

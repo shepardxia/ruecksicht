@@ -30,11 +30,13 @@ window.onload = ->
   getState (err, initialState) ->
     bail err, 10000 if err?
     store = redux.createStore(reducer, initialState)
-    Object.keys(initialState.widgets).forEach (id) ->
-      fetchWidget(id)
-        .then (widgetImpl) ->
-          store.dispatch(actions.showWidget(id, widgetImpl))
-          replayOutput(id)
+    loadWidget = (id) ->
+      fetchWidget(id).then (widgetImpl) ->
+        store.dispatch(actions.showWidget(id, widgetImpl))
+        replayOutput(id)
+    reportDrawn Object.keys(initialState.widgets).map (id) ->
+      output = firstOutput(id) if initialState.widgets[id].serverDriven
+      Promise.all([loadWidget(id), output])
 
     prevState = null
     store.subscribe ->
@@ -48,14 +50,11 @@ window.onload = ->
         render.rendered[action.payload]?.instance?.forceRefresh()
       else if action.type == 'WIDGET_COMMAND_RAN'
         latestOutput[action.payload.id] = action.payload
+        awaitingOutput[action.payload.id]?()
         render.rendered[action.payload.id]?.instance?.receive(action.payload)
       else if action.type == 'WIDGET_ADDED'
         store.dispatch(action)
-        return if action.payload.error
-        fetchWidget(action.payload.id)
-          .then (widgetImpl) ->
-            store.dispatch(actions.showWidget(action.payload.id, widgetImpl))
-            replayOutput(action.payload.id)
+        loadWidget(action.payload.id) unless action.payload.error
       else if action.type == 'MASTER_STYLE_CHANGED'
         reloadUserCSS()
       else
@@ -80,6 +79,30 @@ latestOutput = {}
 replayOutput = (id) ->
   payload = latestOutput[id]
   render.rendered[id]?.instance?.receive(payload) if payload
+
+awaitingOutput = {}
+
+firstOutput = (id) -> new Promise (resolve) ->
+  if latestOutput[id] then resolve() else awaitingOutput[id] = resolve
+
+# The app keeps the window invisible until the page reports its widgets drawn:
+# loaded, holding their first result, painted, images decoded. A widget that
+# fails to load or never gets a result must not hold the others back, so the
+# report goes out after DRAW_PATIENCE at the latest.
+DRAW_PATIENCE = 1000
+
+reportDrawn = (widgets) ->
+  # A page whose window is covered renders no frames, and has nobody to draw
+  # for.
+  frame = -> new Promise (resolve) ->
+    if document.hidden then resolve() else requestAnimationFrame(resolve)
+  decoded = -> Promise.all Array.from(document.images).map (image) ->
+    image.decode().catch(->)
+  drawn = Promise.all(widgets.map (widget) -> widget.catch(->))
+    .then(frame).then(decoded).then(frame)
+  patience = new Promise (resolve) -> setTimeout(resolve, DRAW_PATIENCE)
+  Promise.race([drawn, patience]).then ->
+    window.webkit?.messageHandlers.uebersicht.postMessage('ready')
 
 getState = (callback) ->
   $.get("/state/")

@@ -27,11 +27,17 @@
         [message.webView.window setIgnoresMouseEvents: NO];
     } else if ([message.body isEqual:@"widgetLeave"]) {
         [message.webView.window setIgnoresMouseEvents: YES];
+    } else if ([message.body isEqual:@"ready"]) {
+        [(UBWindow*)message.webView.window pageDidBecomeReady];
     }
 }
 
 @end
 
+
+@interface WKWebView (UBPageLifetime)
+- (void)_close;
+@end
 
 @implementation UBWebViewController {
     NSURL* url;
@@ -64,25 +70,8 @@
 
 - (void)load:(NSURL*)newUrl
 {
-    switch (((UBWindow*)self.view.window).windowType) {
-        case UBWindowTypeAgnostic:
-            url = newUrl;
-            break;
-        case UBWindowTypeBackground:
-            url = [newUrl URLByAppendingPathComponent: @"background"];
-            break;
-        case UBWindowTypeForeground:
-            url = [newUrl URLByAppendingPathComponent: @"foreground"];
-            break;
-        default:
-            break;
-    }
+    url = newUrl;
     [(WKWebView*)view loadRequest:[NSURLRequest requestWithURL: url]];
-}
-
-- (void)reload
-{
-    [(WKWebView*)view reloadFromOrigin:self];
 }
 
 - (void)redraw
@@ -90,9 +79,22 @@
     [self forceRedraw:(WKWebView*)view];
 }
 
-- (pid_t)gpuProcessIdentifier
+- (void)expectFrameWithin:(NSTimeInterval)timeout
+                   orElse:(void (^)(void))stalled
 {
-    return [[view valueForKey:@"_gpuProcessIdentifier"] intValue];
+    __block BOOL rendered = NO;
+    [(WKWebView*)view
+        callAsyncJavaScript: @"return new Promise(resolve => requestAnimationFrame(resolve))"
+        arguments: nil
+        inFrame: nil
+        inContentWorld: [WKContentWorld pageWorld]
+        completionHandler: ^(id result, NSError* error) { rendered = !error; }
+    ];
+    dispatch_after(
+        dispatch_time(DISPATCH_TIME_NOW, timeout * NSEC_PER_SEC),
+        dispatch_get_main_queue(),
+        ^{ if (!rendered) stalled(); }
+    );
 }
 
 - (void)destroy
@@ -117,13 +119,17 @@
     return webView;
 }
 
+// A released view leaves its page and content process running. The page is
+// closed first, as WebKit reloads an open page whose process dies; the process
+// is then killed, as one that stopped rendering ignores being asked to exit.
 - (void)teardownWebview:(WKWebView*)webView
 {
     webView.navigationDelegate = nil;
-    [webView stopLoading:self];
-    // Dropping the loaded document releases the page WebKit holds its
-    // inspectable-content sleep assertion against.
-    [webView loadHTMLString:@"" baseURL:nil];
+    if ([webView respondsToSelector:@selector(_close)]) {
+        pid_t contentProcess = [[webView valueForKey:@"_webProcessIdentifier"] intValue];
+        [webView _close];
+        if (contentProcess > 0) kill(contentProcess, SIGKILL);
+    }
     [webView removeFromSuperview];
 }
 

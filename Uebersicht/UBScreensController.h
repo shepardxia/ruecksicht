@@ -13,8 +13,6 @@
 @property NSMutableDictionary* screens;
 @property NSArray* sortedScreens;
 
-- (id)initWithChangeListener:(id)target;
-- (void)handleScreenChange:(id)sender;
 - (void)syncScreens;
 
 @end

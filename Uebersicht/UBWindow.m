@@ -20,6 +20,7 @@
     UBWebViewController* webViewController;
     NSTrackingArea* trackingArea;
     UBWindowType type;
+    void (^onReady)(void);
 }
 
 - (id)initWithWindowType:(UBWindowType)windowType
@@ -45,8 +46,14 @@
         [self disableSnapshotRestoration];
         [self setDisplaysWhenScreenProfileChanges:YES];
         [self setReleasedWhenClosed:NO];
-        [self setWindowType:windowType];
+        [self setLevel: type == UBWindowTypeForeground
+            ? kCGNormalWindowLevel - 1
+            : kCGDesktopWindowLevel
+        ];
         [self setIgnoresMouseEvents:YES];
+        // Transparent rather than ordered out: the page of a window that is
+        // ordered out counts as hidden and renders no frames.
+        [self setAlphaValue:0];
         
         webViewController = [[UBWebViewController alloc]
             initWithFrame: [self frame]
@@ -57,25 +64,40 @@
     return self;
 }
 
-- (void)loadUrl:(NSURL*)url
+- (void)loadUrl:(NSURL*)screenUrl onReady:(void (^)(void))ready
 {
+    onReady = [ready copy];
+
+    NSURL* url = screenUrl;
+    if (type == UBWindowTypeBackground) {
+        url = [screenUrl URLByAppendingPathComponent:@"background"];
+    } else if (type == UBWindowTypeForeground) {
+        url = [screenUrl URLByAppendingPathComponent:@"foreground"];
+    }
     [webViewController load:url];
 }
 
-- (void)reload
+- (void)pageDidBecomeReady
 {
-    [webViewController reload];
+    void (^ready)(void) = onReady;
+    onReady = nil;
+    if (ready) ready();
 }
 
-// The web view must be torn down here, not left to ARC. Screen parameter
-// changes close and rebuild windows, and a web view that outlives its window
-// keeps the sleep-prevention assertion WebKit holds for inspectable content.
+- (void)reveal
+{
+    [self setAlphaValue:1];
+}
+
+// The web view is torn down with the window, not left to ARC: one that
+// outlives its window keeps its page and content process running.
 - (void)close
 {
     if (trackingArea != nil) {
         [self.contentView removeTrackingArea:trackingArea];
         trackingArea = nil;
     }
+    onReady = nil;
     [webViewController destroy];
     webViewController = nil;
     [self setContentView:nil];
@@ -120,50 +142,24 @@
 #pragma mark signals/events
 #
 
-- (void)workspaceChanged
+- (void)redraw
 {
     [webViewController redraw];
 }
 
-- (void)wallpaperChanged
+- (BOOL)isInView
 {
-    [webViewController redraw];
+    return (self.occlusionState & NSWindowOcclusionStateVisible) != 0;
 }
 
-- (pid_t)gpuProcessIdentifier
+- (void)expectFrameWithin:(NSTimeInterval)timeout
+                   orElse:(void (^)(void))stalled
 {
-    return [webViewController gpuProcessIdentifier];
-}
+    if (![self isInView]) return;
 
-#
-#pragma mark window type and interaction
-#
-
-
-- (void)setWindowType:(UBWindowType)newType
-{
-    switch (newType) {
-        case UBWindowTypeForeground:
-            [self setLevel:kCGNormalWindowLevel-1];
-            [self updateTrackingArea];
-            break;
-        case UBWindowTypeBackground:
-        case UBWindowTypeAgnostic:
-            [self setLevel:kCGDesktopWindowLevel];
-            if (trackingArea != nil) {
-                [self.contentView removeTrackingArea:trackingArea];
-            }
-            [self setIgnoresMouseEvents:YES];
-            break;
-        default:
-            break;
-    }
-    type = newType;
-}
-
-- (UBWindowType)windowType
-{
-    return type;
+    [webViewController expectFrameWithin:timeout orElse:^{
+        if ([self isInView]) stalled();
+    }];
 }
 
 #

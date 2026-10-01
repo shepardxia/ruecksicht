@@ -34,7 +34,6 @@ int const PORT = 41416;
     int port;
     UBWidgetsStore* widgetsStore;
     UBWidgetsController* widgetsController;
-    pid_t gpuProcess;
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification
@@ -48,11 +47,10 @@ int const PORT = 41416;
     
     widgetsStore = [[UBWidgetsStore alloc] init];
 
-    screensController = [[UBScreensController alloc]
-        initWithChangeListener:self
-    ];
+    screensController = [[UBScreensController alloc] init];
     
     windowsController = [[UBWindowsController alloc] init];
+    windowsController.interactionEnabled = preferences.enableInteraction;
     
     widgetsController = [[UBWidgetsController alloc]
         initWithMenu: statusBarMenu
@@ -73,20 +71,6 @@ int const PORT = 41416;
 
     [[[NSWorkspace sharedWorkspace] notificationCenter]
         addObserver: self
-        selector: @selector(wakeFromSleep:)
-        name: NSWorkspaceDidWakeNotification
-        object: nil
-    ];
-    
-    [[[NSWorkspace sharedWorkspace] notificationCenter]
-        addObserver: self
-        selector: @selector(workspaceChanged:)
-        name: NSWorkspaceActiveSpaceDidChangeNotification
-        object: nil
-    ];
-    
-    [[[NSWorkspace sharedWorkspace] notificationCenter]
-        addObserver: self
         selector: @selector(loginSessionBecameActive:)
         name: NSWorkspaceSessionDidBecomeActiveNotification
         object: nil
@@ -102,17 +86,6 @@ int const PORT = 41416;
     // start server and load webview
     port = PORT;
     [self startUp];
-
-    // When WebKit's GPU helper dies, every web view keeps its page but never
-    // paints again, and no reload brings it back. Only new views do.
-    [NSTimer scheduledTimerWithTimeInterval:5 repeats:YES block:^(NSTimer* timer) {
-        pid_t current = [self->windowsController gpuProcessIdentifier];
-        if (self->gpuProcess && current != self->gpuProcess) {
-            NSLog(@"gpu process %d gone (now %d), rebuilding windows", self->gpuProcess, current);
-            [self->screensController syncScreens];
-        }
-        self->gpuProcess = current;
-    }];
     
     [self listenToWallpaperChanges];
 }
@@ -143,8 +116,8 @@ int const PORT = 41416;
             self->port = [[output substringFromIndex:NSMaxRange(started)] intValue];
             [[UBWebSocket sharedSocket] open:[self serverUrl:@"ws"]];
             [self->widgetsStore reset: [self fetchState]];
-            // this will trigger a render
             [self->screensController syncScreens];
+            self->windowsController.baseUrl = [self serverUrl:@"http"];
         }
     };
 
@@ -179,7 +152,7 @@ int const PORT = 41416;
     shuttingDown = YES;
 
     keepServerAlive = keepAlive;
-    [windowsController closeAll];
+    windowsController.baseUrl = nil;
     [[UBWebSocket sharedSocket] close];
     if (widgetServer){
         [widgetServer terminate];
@@ -276,21 +249,6 @@ int const PORT = 41416;
 
 
 #
-#pragma mark Screen Handling
-#
-
-- (void)screensChanged:(NSDictionary*)screens
-{
-    if (widgetsController) {
-        [windowsController
-            updateWindows:screens
-            baseUrl: [self serverUrl: @"http"]
-            interactionEnabled: preferences.enableInteraction
-        ];
-    }
-}
-
-#
 # pragma mark received actions
 #
 
@@ -307,7 +265,7 @@ int const PORT = 41416;
 
 - (void)interactionDidChange
 {
-    [screensController syncScreens];
+    windowsController.interactionEnabled = preferences.enableInteraction;
 }
 
 - (void)showPreferences:(id)sender
@@ -332,7 +290,7 @@ int const PORT = 41416;
 
 - (void)refreshWidgets:(id)sender
 {
-    [screensController syncScreens];
+    [windowsController rebuild];
 }
 
 - (void)showDebugConsole:(id)sender
@@ -350,19 +308,9 @@ int const PORT = 41416;
     return YES;
 }
 
-- (void)wakeFromSleep:(NSNotification *)notification
-{
-    [screensController syncScreens];
-}
-
-- (void)workspaceChanged:(NSNotification *)notification
-{
-    [windowsController workspaceChanged];
-}
-
 - (void)wallpaperChanged:(NSNotification *)notification
 {
-    [windowsController wallpaperChanged];
+    [windowsController redraw];
 }
 
 - (void)loginSessionBecameActive:(NSNotification *)notification

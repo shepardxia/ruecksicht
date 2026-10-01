@@ -10,20 +10,21 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+/// Owns the widget windows of every screen, showing the pages served at
+/// `baseUrl`. Nothing else creates, replaces or closes them.
 @interface UBWindowsController : NSObject
 
+/// Where the pages are served. Nil while there is no server, and then there
+/// are no windows.
+@property (nonatomic, copy, nullable) NSURL* baseUrl;
+@property (nonatomic) BOOL interactionEnabled;
 
-- (void)updateWindows:(NSDictionary*)screens
-              baseUrl:(NSURL*)baseUrl
-   interactionEnabled:(Boolean)interactionEnabled;
-
-- (void)closeAll;
-/// The GPU helper behind the windows, 0 when there are none.
-- (pid_t)gpuProcessIdentifier;
-- (void)workspaceChanged;
-- (void)wallpaperChanged;
+/// Replaces every window with a newly built one.
+- (void)rebuild;
+/// Has every page paint again, for when what shows through the windows has
+/// changed.
+- (void)redraw;
 - (void)showDebugConsolesForScreen:(NSNumber*)screenId;
-- (NSScreen*)getNSScreen:(NSNumber*)screenId;
 
 @end
 

@@ -22,13 +22,18 @@ typedef NS_ENUM(NSInteger, UBWindowType) {
 
 @interface UBWindow : NSWindow
 
-@property UBWindowType windowType;
-
 - (id)initWithWindowType:(UBWindowType)type;
-- (void)loadUrl:(NSURL*)url;
-- (void)reload;
-- (void)workspaceChanged;
-- (void)wallpaperChanged;
-- (pid_t)gpuProcessIdentifier;
+/// Loads this window's layer of the page for a screen. The window stays
+/// invisible until `reveal`; `ready` runs once, when the page reports its
+/// widgets drawn.
+- (void)loadUrl:(NSURL*)screenUrl onReady:(void (^)(void))ready;
+- (void)pageDidBecomeReady;
+- (void)reveal;
+- (void)redraw;
+/// Runs `stalled` when the window is in view and its page renders no frame
+/// within `timeout`. A covered window's page is paused by WebKit and owes no
+/// frame.
+- (void)expectFrameWithin:(NSTimeInterval)timeout
+                   orElse:(void (^)(void))stalled;
 
 @end

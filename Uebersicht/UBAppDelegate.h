@@ -11,15 +11,13 @@
 //  details.
 
 #import <Cocoa/Cocoa.h>
-#import "UBScreenChangeListener.h"
 
-@interface UBAppDelegate : NSObject <NSApplicationDelegate, NSUserNotificationCenterDelegate, UBScreenChangeListener>
+@interface UBAppDelegate : NSObject <NSApplicationDelegate, NSUserNotificationCenterDelegate>
 
 @property (readonly) NSArray* widgets;
 
 - (void)widgetDirDidChange;
 - (void)interactionDidChange;
-- (void)screensChanged:(NSDictionary*)screens;
 - (void)showPreferences:(id)sender;
 - (void)openWidgetDir:(id)sender;
 - (void)showDebugConsole:(id)sender;

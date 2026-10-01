@@ -8,25 +8,22 @@
 
 #import "UBScreensController.h"
 #import "UBDispatcher.h"
-#import "UBScreenChangeListener.h"
 #import <IOKit/graphics/IOGraphicsLib.h>
 
 int const MAX_DISPLAYS = 42;
 
 @implementation UBScreensController {
-    id listener;
     UBDispatcher* dispatcher;
 }
 
 @synthesize screens;
 @synthesize sortedScreens;
 
-- (id)initWithChangeListener:(id<UBScreenChangeListener>)target;
+- (id)init
 {
     self = [super init];
     if (self) {
         screens = [[NSMutableDictionary alloc] initWithCapacity:MAX_DISPLAYS];
-        listener = target;
         dispatcher = [[UBDispatcher alloc] init];
         
         [[NSNotificationCenter defaultCenter]
@@ -41,7 +38,7 @@ int const MAX_DISPLAYS = 42;
 }
 
 
-- (void)updateScreens
+- (void)syncScreens
 {
     NSString *name;
     NSMutableDictionary *nameList = [[NSMutableDictionary alloc]
@@ -97,12 +94,6 @@ int const MAX_DISPLAYS = 42;
        withObject:NULL
        afterDelay:0
     ];
-}
-
-- (void)syncScreens
-{
-    [self updateScreens];
-    [listener screensChanged:screens];
 }
 
 
