@@ -10,21 +10,21 @@ public struct HTTPRequest {
 
 public struct HTTPResponse {
     public var status: Int
-    public var contentType: String
+    public var headers: [String: String]
     public var body: Data
 
-    public init(status: Int = 200, contentType: String = "text/plain; charset=utf-8", body: Data = Data()) {
+    public init(status: Int = 200, headers: [String: String] = [:], body: Data = Data()) {
         self.status = status
-        self.contentType = contentType
+        self.headers = headers
         self.body = body
     }
 
     public static func text(_ string: String, status: Int = 200) -> HTTPResponse {
-        HTTPResponse(status: status, body: Data(string.utf8))
+        HTTPResponse(status: status, headers: ["Content-Type": "text/plain; charset=utf-8"], body: Data(string.utf8))
     }
 
     public static func json(_ string: String) -> HTTPResponse {
-        HTTPResponse(status: 200, contentType: "application/json; charset=utf-8", body: Data(string.utf8))
+        HTTPResponse(headers: ["Content-Type": "application/json; charset=utf-8"], body: Data(string.utf8))
     }
 }
 
@@ -167,12 +167,15 @@ public final class HTTPServer {
 
     private static func serialize(_ response: HTTPResponse) -> Data {
         let reason = response.status == 200 ? "OK"
+            : response.status == 304 ? "Not Modified"
             : response.status == 404 ? "Not Found"
             : response.status == 403 ? "Forbidden"
             : "Error"
         var head = "HTTP/1.1 \(response.status) \(reason)\r\n"
-        head += "Content-Type: \(response.contentType)\r\n"
         head += "Content-Length: \(response.body.count)\r\n"
+        for (name, value) in response.headers.sorted(by: { $0.key < $1.key }) {
+            head += "\(name): \(value)\r\n"
+        }
         head += "Connection: close\r\n\r\n"
         var out = Data(head.utf8)
         out.append(response.body)

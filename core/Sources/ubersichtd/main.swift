@@ -65,28 +65,6 @@ func message(_ id: String, _ result: TickResult) -> String {
     return json(["type": "WIDGET_COMMAND_RAN", "payload": body])
 }
 
-func contentType(for path: String) -> String {
-    switch (path as NSString).pathExtension.lowercased() {
-    case "html": return "text/html; charset=utf-8"
-    case "css": return "text/css; charset=utf-8"
-    case "js", "jsx": return "application/javascript; charset=utf-8"
-    case "json": return "application/json; charset=utf-8"
-    case "png": return "image/png"
-    case "jpg", "jpeg": return "image/jpeg"
-    case "gif": return "image/gif"
-    case "svg": return "image/svg+xml"
-    default: return "application/octet-stream"
-    }
-}
-
-func serveFile(_ path: String) -> HTTPResponse? {
-    var isDirectory: ObjCBool = false
-    guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory), !isDirectory.boolValue,
-          let data = FileManager.default.contents(atPath: path)
-    else { return nil }
-    return HTTPResponse(status: 200, contentType: contentType(for: path), body: data)
-}
-
 var server: HTTPServer!
 server = HTTPServer(port: options.port) { request in
     let path = request.path.components(separatedBy: "?")[0]
@@ -106,7 +84,7 @@ server = HTTPServer(port: options.port) { request in
     if request.method == "POST", path == "/run/" {
         do {
             let result = try shells.run(String(decoding: request.body, as: UTF8.self), in: options.widgetDirectory)
-            return HTTPResponse(status: result.stderr.isEmpty ? 200 : 500, body: Data((result.stdout + result.stderr).utf8))
+            return HTTPResponse.text(result.stdout + result.stderr, status: result.stderr.isEmpty ? 200 : 500)
         } catch {
             return HTTPResponse.text("\(error)", status: 500)
         }
@@ -122,7 +100,7 @@ server = HTTPServer(port: options.port) { request in
             return HTTPResponse.text("", status: 404)
         }
         do {
-            return HTTPResponse(status: 200, contentType: "application/javascript; charset=utf-8",
+            return HTTPResponse(headers: ["Content-Type": "application/javascript; charset=utf-8"],
                                 body: Data(try bundler.bundle(widget).utf8))
         } catch {
             return HTTPResponse.text("\(error)", status: 500)
@@ -134,16 +112,16 @@ server = HTTPServer(port: options.port) { request in
     if !relative.isEmpty, !relative.contains("..") {
         let parts = relative.split(separator: "/", maxSplits: 1).map(String.init)
         if parts.count == 2, let directory = index.directory(named: parts[0]),
-           let file = serveFile((directory as NSString).appendingPathComponent(parts[1])) {
+           let file = HTTPResponse.file(at: (directory as NSString).appendingPathComponent(parts[1]), for: request) {
             return file
         }
         for root in [options.publicDirectory, options.widgetDirectory] {
-            if let file = serveFile((root as NSString).appendingPathComponent(relative)) { return file }
+            if let file = HTTPResponse.file(at: (root as NSString).appendingPathComponent(relative), for: request) { return file }
         }
     }
 
     // Every screen and layer path renders the same page.
-    return serveFile((options.publicDirectory as NSString).appendingPathComponent("index.html"))
+    return HTTPResponse.file(at: (options.publicDirectory as NSString).appendingPathComponent("index.html"), for: request)
         ?? HTTPResponse.text("not found", status: 404)
 }
 
