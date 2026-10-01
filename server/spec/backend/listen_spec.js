@@ -14,6 +14,7 @@ test('listen', (t) => {
       { type: 'YASS', payload: 'yay' },
       'it calls listeners with deserialized messages'
     );
+    sharedSocket.close();
     server.close(() => t.end());
   });
 
